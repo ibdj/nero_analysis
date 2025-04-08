@@ -9,7 +9,7 @@ use_git_config(
 )
 
 # see tokens https://github.com/settings/tokens
-# usethis::create_github_token()
+usethis::create_github_token()
 # gitcreds::gitcreds_set()
 
 git_vaccinate() 
