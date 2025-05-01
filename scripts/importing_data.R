@@ -28,14 +28,20 @@ read_and_standardize <- function(file) {
 }
 
 # Read and merge all CSV files into one data frame
-merged_data <- file_list %>%
-  lapply(read_and_standardize) %>%  # Apply standardization function to each file
+merged_data <- file_list |> 
+  lapply(read_and_standardize) |>   # Apply standardization function to each file
   bind_rows() |>                    # Combine them into one data frame
   filter(raunkiaer_value != -9999) |>  # Remove invalid values
   mutate(presence = ifelse(raunkiaer_value > 0, 1, 0))  # Convert to presence-absence
+
+inspect <- merged_data |> 
+  filter(year == 2022, 
+         plot_id == 3.02 )
 
 # View the merged data
 print(merged_data)
 merged_data$veg_type <- as.factor(merged_data$veg_type)
 summary(merged_data)
 
+
+this.path::this.path()
