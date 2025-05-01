@@ -2,6 +2,14 @@
 
 library(vegan)
 
+#List of number of plots in each veg type
+# heath 8076
+# copse 1875
+# snowbed 1765
+# fen 1738
+# abrasion 284
+# salt marsh 95
+
 #### heath ######################################################################################################################################################################
 # Perform NMDS using jaccard dissimilarity (because now presence-absence data)
 head(heath_nmds_clean)
@@ -68,14 +76,14 @@ print(head(nmds_scores))
 
 # Convert plot_id in both data frames to character (if not already done)
 nmds_scores$plot_id <- as.numeric(nmds_scores$plot_id)
-copse_metadata$plot_id <- as.numeric(copse_metadata$plot_id)
+metadata$plot_id <- as.numeric(metadata$plot_id)
 
-head(copse_metadata)
+head(metadata)
 
 # Perform the join again
 
-metadata <- merged_data %>%
-  select(plot_id, year) %>%
+metadata <- merged_data  |> 
+  select(plot_id, year) |> 
   distinct()  # Ensure unique rows for each plot_id and year
 head(metadata)
 
@@ -83,7 +91,7 @@ nmds_scores <- nmds_scores |>
   mutate(plot_id = as.numeric(plot_id))
 
 head(nmds_scores)
-head(copse_metadata)
+head(metadata)
 
 nmds_plot_data <- nmds_scores %>%
   left_join(metadata, by = "plot_id") |> 
@@ -102,11 +110,14 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = as.factor(year))) +
   geom_point(size = 4) +  # Add points
   geom_text(aes(label = plot_id), vjust = -1.5, size = 3) +  # Add plot labels
   labs(
-    title = "NMDS of Heath Vegetation Over Time",
-    x = "NMDS Dimension 1",
-    y = "NMDS Dimension 2",
+    title = "NMDS of copse",
+    x = "NMDS1",
+    y = "NMDS2",
     color = "Year"
   ) +
+  geom_line(aes(group = plot_id), color = "grey50", linetype = "dashed") +  # Add connecting lines
+  stat_ellipse(aes(group = as.factor(year), fill = as.factor(year)), 
+               alpha = 0.3, type = "norm") +  # Add ellipses
   theme_minimal()
 
 hulls <- nmds_plot_data |>
@@ -129,3 +140,4 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = as.factor(year))) +
     fill = "Year"
   ) +
   theme_minimal()
+
