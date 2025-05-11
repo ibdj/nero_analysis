@@ -4,10 +4,18 @@ library(tidyverse)
 names(merged_data)
 
 nmds_data <- merged_data |>
+  filter(presence == 1) |> 
   select(year, plot_id, veg_type, taxon_code, raunkiaer_value, presence) |> 
   filter(!is.na(raunkiaer_value)) |>   # Remove rows with missing values
   group_by(year, plot_id, veg_type, taxon_code, presence) |> 
   summarize(raunkiaer_value = sum(raunkiaer_value), .groups = "drop")  # Summarize duplicates
+
+# see if any plots dont have data
+check_empty_plots <- nmds_data |> 
+  group_by(year, plot_id) |> 
+  summarize(sum = sum(presence)) |> 
+  filter(sum == 0)
+
 
 names(nmds_data)
 
@@ -21,15 +29,20 @@ nmds_matrix <- nmds_data |>
   ungroup() |>   # Remove grouping
   select(-raunkiaer_value)
   
+empty <- nmds_matrix |> 
+  filter(rowSums(across(4:ncol(.))) == 0)
 
 # Convert to a numeric matrix for NMDS
 nmds_matrix <- as.data.frame(nmds_matrix)
 rownames(nmds_matrix) <- nmds_matrix$plot_id
 nmds_matrix <- nmds_matrix |>  select(-plot_id, -veg_type, -year)  # Exclude non-numeric columns
-nmds_matrix <- as.matrix(nmds_matrix)
 
 
-#### substting for heath ##################################################################################################################################
+#### checking for empty rows ####
+empty <- nmds_matrix |> 
+  filter(rowSums(across(4:ncol(.))) == 0)
+
+#### substting for heath ############################################################################################################
 
 # Filter the data for a single vegetation type
 heath_nmds <- merged_data |> 
