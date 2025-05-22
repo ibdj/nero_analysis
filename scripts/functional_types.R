@@ -1,7 +1,7 @@
 #### packages #### 
 library(vegan)
 library(ggplot2)
-
+library(tidyverse)
 
 #### subsections functional types data prepping ####
 
@@ -20,35 +20,54 @@ head(func_subsection_wide)
 
 unique_years <- sort(unique(func_type_subsection_summary$year))
 
-ggplot(func_type_subsection_summary |> filter(veg_type == "copse"), 
+veg_types <- unique(func_type_subsection_summary$veg_type)
+
+for (veg in veg_types) {
+  p <- ggplot(func_type_subsection_summary |> filter(veg_type == veg), 
+              aes(x = year, y = func_plot_fraction, color = ecoveg_gfc)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    scale_x_continuous(breaks = unique_years) +
+    ggtitle(paste("veg_type:", veg))
+  print(p)
+}
+
+### facet wrap ###
+
+unique_years <- sort(unique(func_type_subsection_summary$year))
+
+ggplot(func_type_subsection_summary, 
        aes(x = year, y = func_plot_fraction, color = ecoveg_gfc)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  scale_x_continuous(breaks = unique_years)
+  scale_x_continuous(breaks = unique_years) +
+  facet_wrap(~veg_type)
 
-#### relative abundance of functional types heath #####
+### facet wrap with sigificance lines ####
+plot_data <- func_type_subsection_summary %>%
+  left_join(
+    results %>% select(veg_type, ecoveg_gfc, significant),
+    by = c("veg_type", "ecoveg_gfc")
+  )
 
-ggplot(func_type_subsection_summary |> filter(veg_type == "heath"), 
+ggplot(plot_data, 
        aes(x = year, y = func_plot_fraction, color = ecoveg_gfc)) +
   geom_point() +
-  geom_smooth(method = "lm") +
-  scale_x_continuous(breaks = unique_years)
+  geom_smooth(
+    method = "lm",
+    aes(linetype = significant),  # Map linetype to significance
+    se = TRUE,                    # Keep confidence intervals if desired
+    size = 0.7                    # Adjust line thickness
+  ) +
+  scale_x_continuous(breaks = unique_years) +
+  scale_linetype_manual(
+    name = "Significance",
+    values = c("TRUE" = "solid", "FALSE" = "dashed"),  # Define line styles
+    labels = c("TRUE" = "p < 0.05", "FALSE" = "NS")
+  ) +
+  facet_wrap(~veg_type) +
+  theme_minimal()
 
-#### relative abundance of functional types fen #####
-
-ggplot(func_type_subsection_summary |> filter(veg_type == "fen"), 
-       aes(x = year, y = func_plot_fraction, color = ecoveg_gfc)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  scale_x_continuous(breaks = unique_years)
-
-#### relative abundance of functional types copse #####
-
-ggplot(func_type_subsection_summary |> filter(veg_type == "copse"), 
-       aes(x = year, y = func_plot_fraction, color = ecoveg_gfc)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  scale_x_continuous(breaks = unique_years)
 
 #### slope for all veg_types and growth forms #####
 library(dplyr)
