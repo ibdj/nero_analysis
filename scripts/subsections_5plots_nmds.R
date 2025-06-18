@@ -5,6 +5,8 @@ library(tidyverse)
 #### nmds with subsections (5 plots) ####
 
 nero_subsection_summary <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nmds_nero/nmds_nero/data/nero_subsection_summary.rds")
+nero_subsection_summary <- as.data.frame(readRDS("~/nmds_nero/data/nero_subsection_summary.rds"))
+  
 
 subsection_wide <- nero_subsection_summary |> 
   pivot_wider(names_from = species, values_from = species_plot_fraction, values_fill = 0 )
