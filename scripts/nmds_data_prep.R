@@ -30,7 +30,7 @@ nmds_matrix <- nmds_data |>
   select(-raunkiaer_value)
   
 empty <- nmds_matrix |> 
-  filter(rowSums(across(4:ncol(.))) == 0)
+  filter(rowSums(across(4:ncol(nmds_matrix))) == 0)
 
 # Convert to a numeric matrix for NMDS
 nmds_matrix <- as.data.frame(nmds_matrix)
