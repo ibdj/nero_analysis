@@ -43,5 +43,6 @@ print(merged_data)
 merged_data$veg_type <- as.factor(merged_data$veg_type)
 summary(merged_data)
 
+write_rds(merged_data, "data/merged_data.rds")
 
 this.path::this.path()
