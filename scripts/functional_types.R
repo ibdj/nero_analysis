@@ -99,3 +99,64 @@ nmds_result <- metaMDS(species_data, distance = "bray", trymax = 100)
 scores_df <- as.data.frame(scores(nmds_result)$sites)
 scores_df$year <- metadata$year
 scores_df$veg_type <- metadata$veg_type
+
+#### looking at frequency of functional types ####
+plot_data <- func_type_subsection_summary %>%
+  mutate(year_fct = factor(year))
+
+plot_data <- func_type_subsection_summary %>%
+  mutate(year_fct = factor(year))
+
+ggplot(plot_data, aes(x = func_plot_fraction, fill = year_fct)) +
+  geom_histogram(
+    position = position_dodge2(preserve = "single"),  # Align bins across years
+    bins = 15,                                         # Adjust based on your data
+    color = "white",                                   # Outline color
+    alpha = 0.8                                       
+  ) +
+  facet_wrap(~ecoveg_gfc, scales = "free_y") +
+  labs(
+    x = "func_plot_fraction",
+    y = "Frequency",
+    fill = "Year",
+    title = "Yearly func_plot_fraction Distributions by Growth Form"
+  ) +
+  scale_fill_viridis_d() +  # Colorblind-friendly palette
+  theme_minimal()
+
+#### frequency of functional groups pr vegetation type #####
+# Get unique veg_types
+veg_types <- unique(func_type_subsection_summary$veg_type)
+
+# Loop through each veg_type
+for (v in veg_types) {
+  
+  # Filter data for current veg_type
+  plot_data <- func_type_subsection_summary %>%
+    filter(veg_type == v) %>%
+    mutate(year = factor(year))  # Convert year to factor for discrete grouping
+  
+  # Skip empty data (if any veg_type has no observations)
+  if (nrow(plot_data) == 0) next
+  
+  # Create plot
+  p <- ggplot(plot_data, aes(x = func_plot_fraction, fill = year)) +
+    geom_histogram(
+      position = position_dodge2(preserve = "single"),  # Align bins
+      bins = 15,                       
+      color = "white",                # Bar outline color
+      alpha = 0.8
+    ) +
+    facet_wrap(~ecoveg_gfc, scales = "free_y") +  # Facet by growth form
+    labs(
+      title = paste("veg_type:", v),
+      x = "func_plot_fraction",
+      y = "Frequency",
+      fill = "Year"
+    ) +
+    scale_fill_viridis_d() +  # Color palette
+    theme_minimal()
+}
+  # Print plot (or save)
+  print(p)
+  
