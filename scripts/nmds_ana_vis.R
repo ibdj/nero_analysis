@@ -64,8 +64,9 @@ for (current_year in years) {
 # Arrange plots in grid
 gridExtra::grid.arrange(grobs = plots, ncol = ceiling(sqrt(length(years))))
 
+write_rds(nmds_results,"nmds_results")
 
-#### heath ###################################################
+ #### heath ###################################################
 # Perform NMDS using jaccard dissimilarity (because now presence-absence data)
 head(heath_nmds_clean)
 heath_nmds_result <- metaMDS(heath_nmds_clean, distance = "jaccard", k = 3, trymax = 100)
