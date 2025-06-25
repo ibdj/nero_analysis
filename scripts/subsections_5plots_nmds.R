@@ -21,3 +21,4 @@ community_matrix <- subsection_wide_2007 |> select(-veg_type)
 
 
 
+
