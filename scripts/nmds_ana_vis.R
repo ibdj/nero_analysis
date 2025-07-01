@@ -1,4 +1,4 @@
-# nmds analysis
+#### nmds analysis ####
 
 library(vegan)
 
@@ -94,7 +94,7 @@ nmds_scores$plot_id <- as.numeric(nmds_scores$plot_id)
 heath_metadata$plot_id <- as.numeric(heath_metadata$plot_id)
 
 # Perform the join again
-nmds_plot_data <- nmds_scores %>%
+nmds_plot_data <- nmds_scores |> 
   left_join(heath_metadata, by = "plot_id") |> 
   filter(is.na(year))
 
@@ -180,7 +180,6 @@ hulls <- nmds_plot_data |>
   group_by(year) |>
   slice(chull(NMDS1, NMDS2)) |>
   ungroup()
-
 
 
 # Plot NMDS with convex hulls
