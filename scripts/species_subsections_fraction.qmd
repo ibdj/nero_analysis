@@ -1,0 +1,58 @@
+---
+title: "subsection_species_abundance"
+format: html
+editor: source
+---
+
+```{r}
+#| echo: false
+#| label: data-import
+
+library(tidyverse)
+library(ggplot2)
+library(ggpmisc)
+
+nero_subsection_species <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nmds_nero/nmds_nero/data/nero_subsection_species.rds")
+```
+
+You can add options to executable code like this
+
+```{r}
+#| label: plot-fractions
+#| warning: false
+#| echo: false
+
+# Make sure 'species' column exists
+stopifnot("species" %in% names(nero_subsection_species))
+
+species_list <- unique(nero_subsection_species$species)
+
+for (sp in species_list) {
+  data_sp <- dplyr::filter(nero_subsection_species, species == sp)
+  if (nrow(data_sp) < 2) next
+  
+    # Calculate n per veg_type (for faceting)
+  n_df <- data_sp |> 
+    group_by(veg_type) |> 
+    summarise(n = n(), .groups = 'drop') |> 
+    # Choose coordinates for label (Inf = top right, but can adjust)
+    mutate(x = Inf, y = Inf)
+  
+  try({
+    p <- ggplot(data_sp, aes(x = year, y = fraction)) +
+      geom_point() +
+      geom_smooth(method = "lm") +
+      ylim(0,1)+
+      ggpmisc::stat_poly_eq(
+        aes(label = paste(..p.value.label.., ..rr.label.., ..eq.label.., sep = "~~~")),
+        formula = y ~ x,
+        parse = TRUE
+      ) +
+      facet_wrap(~veg_type) +
+      ggtitle(paste("Species:", sp))
+    print(p)
+  })
+}
+```
+
+
