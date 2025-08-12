@@ -30,6 +30,7 @@ read_and_standardize <- function(file) {
 
 # read the functional types files #
 eco_veg_growth_forms <- read_excel("data/eco_veg_growth_forms.xlsx")
+View(eco_veg_growth_forms)
 
 # Read and merge all CSV files into one data frame
 merged_data <- file_list |> 
@@ -55,5 +56,55 @@ merged_data$ecoveg_sgfc <- as.factor(merged_data$ecoveg_sgfc)
 summary(merged_data)
 
 write_rds(merged_data, "data/merged_data.rds")
+View(merged_data)
 
 this.path::this.path()
+
+merged_data[is.na(merged_data$ecoveg_sgfc),]
+
+#### nero subsection summmary ####
+
+nero_subsection_summary1 <- merged_data |>
+  mutate(subsection = case_when(
+    plot >= 1  & plot <= 5  ~ paste(vt_section, "1", sep = "."),
+    plot >= 6  & plot <= 10 ~ paste(vt_section, "2", sep = "."),
+    plot >= 11 & plot <= 15 ~ paste(vt_section, "3", sep = "."),
+    plot >= 16 & plot <= 20 ~ paste(vt_section, "4", sep = "."),
+    TRUE ~ NA_character_
+  ))
+
+summary(nero_subsection_summary1)  
+
+#### subsection functional type ####
+
+nero_subsection_pft <- nero_subsection_summary1 |>
+  group_by(year, subsection, veg_type, func_type) |>
+  summarise(
+    n_plots = n_distinct(plot_id),     # unique plots in group
+    count = n(),                       # row count (species/records) per group
+    pft_pr_plot = count/n_plots,       # per-plot value, as before
+    .groups = 'drop'                   # ensures a clean, ungrouped result
+  )
+  
+write_rds(nero_subsection_pft, "data/nero_subsection_pft.rds")
+
+#### subsection species #####
+
+# Step 1: Calculate n_plots by year, subsection and veg_type (no species)
+plots_summary <- nero_subsection_summary1 |> 
+  group_by(year, subsection, veg_type) |> 
+  summarise(n_plots = n_distinct(plot_id), .groups = 'drop')
+
+# Step 2: Summarise by species (with other vars)
+nero_subsection_species <- nero_subsection_summary1 |> 
+  group_by(year, subsection, veg_type, species) |> 
+  summarise(
+    count = n(),     # records per group (e.g. per species)
+    .groups = 'drop'
+  ) |> 
+  # Step 3: Join n_plots onto this summary
+  left_join(plots_summary, by = c("year", "subsection", "veg_type")) |> 
+  mutate(fraction = count / n_plots)
+
+summary(nero_subsection_species)
+write_rds(nero_subsection_species, "data/nero_subsection_species.rds")
