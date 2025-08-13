@@ -8,10 +8,9 @@ library(readxl)
 
 #### diversity, reading data and mutating ####
 
-eco_veg_growth_forms <- read_excel("data/eco_veg_growth_forms.xlsx")
+merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nmds_nero/nmds_nero/data/merged_data.rds")
 
-merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nmds_nero/nmds_nero/data/merged_data.rds") |> 
-  left_join(eco_veg_growth_forms, by = "taxon_code")
+View(merged_data)
 
 df <- merged_data |>  
   group_by(year, date, plot_id, veg_type) |> 
@@ -24,8 +23,8 @@ mean_species_pr_plot <- df |>
 #### stats and labels needed for the plotting ####
 all_years <- unique(df$year)
 
-label_df <- df %>%
-  group_by(veg_type) %>%
+label_df <- df |> 
+  group_by(veg_type) |> 
   summarise(
     n = n(),
     x = max(year, na.rm = TRUE),
@@ -33,27 +32,27 @@ label_df <- df %>%
   )
 label_df$n_label <- paste0("n = ", label_df$n)
 
-model_stats <- df %>%
-  group_by(veg_type) %>%
+model_stats <- df |>
+  group_by(veg_type) |> 
   summarise(
     model = list(lm(unique_taxa ~ year)),
     .groups = 'drop'
-  ) %>%
-  rowwise() %>%
+  ) |> 
+  rowwise() |> 
   mutate(
     slope_p = tidy(model)$p.value[2],  # Slope p-value
     linetype = ifelse(slope_p < 0.05, "solid", "dashed")
-  ) %>%
+  ) |> 
   select(veg_type, linetype)
 
 # 3. MERGE WITH PLOT DATA
-plot_data <- df %>% 
+plot_data <- df |>  
   left_join(model_stats, by = "veg_type")
 
 # 4. CREATE N-LABELS
-label_df <- df %>%
-  group_by(veg_type) %>%
-  summarise(n = n()) %>%
+label_df <- df |> 
+  group_by(veg_type) |> 
+  summarise(n = n()) |> 
   mutate(n_label = paste0("n = ", n))
 
 #### plot  ####
@@ -127,26 +126,26 @@ label_df_non_shrub <- df_non_shrub  |>
 label_df_non_shrub$n_label <- paste0("n = ", label_df$n)
 
 model_stats_non_shrub <- df_non_shrub |> 
-  group_by(veg_type) %>%
+  group_by(veg_type) |> 
   summarise(
     model = list(lm(unique_taxa ~ year)),
     .groups = 'drop'
-  ) %>%
-  rowwise() %>%
+  ) |> 
+  rowwise() |> 
   mutate(
     slope_p = tidy(model)$p.value[2],  # Slope p-value
     linetype = ifelse(slope_p < 0.05, "solid", "dashed")
-  ) %>%
+  ) |> 
   select(veg_type, linetype)
 
 # 3. MERGE WITH PLOT DATA
-plot_data_non_shrub <- df_non_shrub %>% 
+plot_data_non_shrub <- df_non_shrub |>  
   left_join(model_stats_non_shrub, by = "veg_type")
 
 # 4. CREATE N-LABELS
-label_df_non_shrub <- df_non_shrub %>%
-  group_by(veg_type) %>%
-  summarise(n = n()) %>%
+label_df_non_shrub <- df_non_shrub |> 
+  group_by(veg_type) |> 
+  summarise(n = n()) |> 
   mutate(n_label = paste0("n = ", n))
 
 # plot  #
@@ -202,26 +201,26 @@ label_df_shrub <- df_shrub  |>
 label_df_shrub$n_label <- paste0("n = ", label_df$n)
 
 model_stats_shrub <- df_shrub |> 
-  group_by(veg_type) %>%
+  group_by(veg_type) |> 
   summarise(
     model = list(lm(unique_taxa ~ year)),
     .groups = 'drop'
-  ) %>%
-  rowwise() %>%
+  ) |> 
+  rowwise() |> 
   mutate(
     slope_p = tidy(model)$p.value[2],  # Slope p-value
     linetype = ifelse(slope_p < 0.05, "solid", "dashed")
-  ) %>%
+  ) |> 
   select(veg_type, linetype)
 
 # 3. MERGE WITH PLOT DATA
-plot_data_shrub <- df_shrub %>% 
+plot_data_shrub <- df_shrub |>  
   left_join(model_stats_shrub, by = "veg_type")
 
 # 4. CREATE N-LABELS
-label_df_shrub <- df_shrub %>%
-  group_by(veg_type) %>%
-  summarise(n = n()) %>%
+label_df_shrub <- df_shrub |> 
+  group_by(veg_type) |> 
+  summarise(n = n()) |> 
   mutate(n_label = paste0("n = ", n))
 
 # plot  #
