@@ -1,12 +1,13 @@
 ---
 title: "subsection_species_abundance"
-format: html
+format: pdf
 editor: source
 ---
 
 ```{r}
 #| echo: false
 #| label: data-import
+#| output: false
 
 library(tidyverse)
 library(ggplot2)
@@ -15,44 +16,62 @@ library(ggpmisc)
 nero_subsection_species <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nmds_nero/nmds_nero/data/nero_subsection_species.rds")
 ```
 
-You can add options to executable code like this
+Plots of all species in all vegeation types. 
 
 ```{r}
 #| label: plot-fractions
 #| warning: false
 #| echo: false
 
-# Make sure 'species' column exists
-stopifnot("species" %in% names(nero_subsection_species))
+library(dplyr)
+library(ggplot2)
+library(broom)    # for tidy()
 
 species_list <- unique(nero_subsection_species$species)
 
 for (sp in species_list) {
-  data_sp <- dplyr::filter(nero_subsection_species, species == sp)
+  data_sp <- filter(nero_subsection_species, species == sp)
   if (nrow(data_sp) < 2) next
   
-    # Calculate n per veg_type (for faceting)
-  n_df <- data_sp |> 
-    group_by(veg_type) |> 
-    summarise(n = n(), .groups = 'drop') |> 
-    # Choose coordinates for label (Inf = top right, but can adjust)
-    mutate(x = Inf, y = Inf)
+  # Calculate p-values for each veg_type
+  sig_df <- data_sp %>%
+    group_by(veg_type) %>%
+    do({
+      fit <- lm(fraction ~ year, data = .)
+      pval <- glance(fit)$p.value
+      tibble(sig = !is.na(pval) && pval < 0.05)
+    })
   
-  try({
-    p <- ggplot(data_sp, aes(x = year, y = fraction)) +
-      geom_point() +
-      geom_smooth(method = "lm") +
-      ylim(0,1)+
-      ggpmisc::stat_poly_eq(
-        aes(label = paste(..p.value.label.., ..rr.label.., ..eq.label.., sep = "~~~")),
-        formula = y ~ x,
-        parse = TRUE
-      ) +
-      facet_wrap(~veg_type) +
-      ggtitle(paste("Species:", sp))
-    print(p)
-  })
+  # Merge significance back to data
+  data_sp <- left_join(data_sp, sig_df, by = "veg_type")
+  
+  # Plot: linetype by significance, and use se only for significant lines
+  p <- ggplot(data_sp, aes(x = year, y = fraction)) +
+    geom_point(size = 3, color = "darkgreen", alpha = 0.6) +
+    geom_smooth(
+      method = "lm",
+      aes(linetype = sig, color = sig),
+      se = FALSE  # turn off default shading
+    ) +
+    # add shaded SE only for sig = TRUE
+    geom_smooth(
+      data = filter(data_sp, sig),
+      method = "lm",
+      se = TRUE,
+      aes(linetype = sig)
+    ) +
+    scale_linetype_manual(values = c("FALSE" = "dashed", "TRUE" = "solid")) +
+    scale_color_manual(values = c("FALSE" = "darkgray", "TRUE" = "blue")) +
+    guides(linetype = "none", color = "none")+
+    ylim(0, 1) +
+    ggpmisc::stat_poly_eq(
+      aes(label = paste(..p.value.label.., ..rr.label.., ..eq.label.., sep = "~~~")),
+      formula = y ~ x,
+      parse = TRUE
+    ) +
+    facet_wrap(~veg_type) +
+    ggtitle(paste(sp))
+  
+  print(p)
 }
 ```
-
-
