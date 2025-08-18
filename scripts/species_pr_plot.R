@@ -5,7 +5,6 @@ library(dplyr)
 library(broom)
 library(readxl)
 
-
 #### diversity, reading data and mutating ####
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nmds_nero/nmds_nero/data/merged_data.rds")
