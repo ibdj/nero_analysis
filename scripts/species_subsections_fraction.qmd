@@ -1,6 +1,7 @@
 ---
-title: "subsection_species_abundance"
+title: "Species subsection abundance"
 format: pdf
+output-file: outputs/species_subsection_abundance.pdf
 editor: source
 ---
 
