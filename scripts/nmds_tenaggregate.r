@@ -174,7 +174,58 @@ p +
     inherit.aes = FALSE
   )
 
-############################################ for each vegetation type ############################################
+############################################ permanova + pairvise adonis for all plots ##############################################################################
+library(vegan)
+
+# Calculate the dissimilarity matrix (same as used for NMDS)
+bray_dist <- vegdist(species_mat, method = "bray")
+
+# Run PERMANOVA
+permanova_result <- adonis2(bray_dist ~ year, data = nmds_data, permutations = 999)
+
+# Show results
+print(permanova_result)
+
+# > print(permanova_result)
+# Permutation test for adonis under reduced model
+# Permutation: free
+# Number of permutations: 999
+# 
+# adonis2(formula = bray_dist ~ year, data = nmds_data, permutations = 999)
+# Df SumOfSqs      R2     F Pr(>F)
+# Model      1    0.071 0.00172 0.498  0.855
+# Residual 289   41.001 0.99828             
+# Total    290   41.071 1.00000     
+
+# install remotes (if you don’t already have it)
+install.packages("remotes")
+
+# install the GitHub version
+remotes::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+
+library(pairwiseAdonis)
+
+# Then you can run it like:
+pairwise_ad <- pairwiseAdonis::pairwise.adonis(
+  x = species_mat,              # or a dist object like vegdist(species_mat)
+  factors = nmds_data$year,
+  sim.method = "bray",
+  p.adjust.m = "bonferroni",
+  perm = 999
+)
+
+print(pairwise_ad)
+
+# pairs Df  SumsOfSqs   F.Model          R2 p.value p.adjusted sig
+# 1 2007 vs 2012  1 0.13086565 0.9235351 0.006285821   0.498          1    
+# 2 2007 vs 2017  1 0.05800062 0.4285292 0.002967068   0.898          1    
+# 3 2007 vs 2022  1 0.11326349 0.8260349 0.005743292   0.570          1    
+# 4 2012 vs 2017  1 0.08307035 0.5641961 0.003902737   0.810          1    
+# 5 2012 vs 2022  1 0.03846340 0.2579899 0.001800876   0.979          1    
+# 6 2017 vs 2022  1 0.09878380 0.6922204 0.004885380   0.711          1  
+
+####################################################################################################################################################
+############################################ for each vegetation type ##############################################################################
 
 # Shapes for years
 year_shapes <- c("2007" = 16, "2012" = 15, "2017" = 17, "2022" = 18)
