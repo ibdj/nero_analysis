@@ -1,6 +1,7 @@
 #### nmds with 10 agreegate ####
 library(tidyverse)
 library(viridis)
+library(vegan)
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
   select(year,vt_section,plot_id,veg_type,taxon_code,presence,species,ecoveg_gfc)
@@ -59,8 +60,6 @@ dim(species_mat)         # samples x species
 head(metadata)
 
 ######################################## actual nmds ########################################
-
-library(vegan)
 
 set.seed(42)
 nmds_bray <- metaMDS(species_mat, distance = "bray", k = 3, trymax = 200)
