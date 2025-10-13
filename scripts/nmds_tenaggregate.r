@@ -1,10 +1,22 @@
 #### nmds with 10 agreegate ####
+####################################### packages ############################################
+# Install if not already installed
+if (!requireNamespace("devtools")) install.packages("devtools")
+devtools::install_github("pmartinezarbizu/pairwiseAdonis")
+
 library(tidyverse)
 library(viridis)
 library(vegan)
+library(remotes)
+library(pairwiseAdonis)
+
+####################################### loading data ############################################
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
-  select(year,vt_section,plot_id,veg_type,taxon_code,presence,species,ecoveg_gfc)
+  select(year,vt_section,plot_id,veg_type,taxon_code,presence,species,ecoveg_gfc) |> 
+  filter(veg_type != "saltmarsh")
+
+summary(merged_data)
 
 ####################################### calculating percent pr plot ############################################
 plots_per_section <- merged_data |>
@@ -110,23 +122,37 @@ nmds_data |>
   theme_minimal() +
   labs(shape = "Year", color = "Year") +
   ggtitle("NMDS trajectories of vegetation sections over time (all vegetation types)")
-######################################## visualising for all veg types WITH ELIPSES ########################################
+######################################## visualising for all veg types WITH ELIPSES AND CENTERS ########################################
 
-# Ensure data is sorted for geom_path
-nmds_data <- nmds_data |>
-  arrange(vt_section, year)
+# Compute centroid (mean NMDS position) per year
+centroids <- nmds_data |>
+  group_by(year) |>
+  summarise(
+    NMDS1 = mean(NMDS1, na.rm = TRUE),
+    NMDS2 = mean(NMDS2, na.rm = TRUE)
+  )
 
+
+# Plot with ellipses + centroids
 nmds_data |>
   ggplot(aes(x = NMDS1, y = NMDS2,
              color = factor(year),
              shape = factor(year))) +
   geom_point(size = 3) +
   stat_ellipse(type = "t", linetype = "solid", linewidth = 1) +
+  # add centroids
+  geom_point(
+    data = centroids,
+    aes(x = NMDS1, y = NMDS2, color = factor(year)),
+    shape = 4,        # cross
+    size = 5,
+    stroke = 2
+  ) +
   scale_color_manual(values = year_colors) +
   scale_shape_manual(values = year_shapes) +
   theme_minimal() +
   labs(shape = "Year", color = "Year") +
-  ggtitle("NMDS ordination with 95% confidence ellipses per year")
+  ggtitle("NMDS ordination with 95% confidence ellipses and centroids per year")
 
 ######################################## visualising for all veg types WITH LOADINGS ########################################
 
@@ -174,7 +200,6 @@ p +
   )
 
 ############################################ permanova + pairvise adonis for all plots ##############################################################################
-library(vegan)
 
 # Calculate the dissimilarity matrix (same as used for NMDS)
 bray_dist <- vegdist(species_mat, method = "bray")
@@ -196,13 +221,6 @@ print(permanova_result)
 # Residual 289   41.001 0.99828             
 # Total    290   41.071 1.00000     
 
-# install remotes (if you don’t already have it)
-install.packages("remotes")
-
-# install the GitHub version
-remotes::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
-
-library(pairwiseAdonis)
 
 # Then you can run it like:
 pairwise_ad <- pairwiseAdonis::pairwise.adonis(
@@ -222,6 +240,54 @@ print(pairwise_ad)
 # 4 2012 vs 2017  1 0.08307035 0.5641961 0.003902737   0.810          1    
 # 5 2012 vs 2022  1 0.03846340 0.2579899 0.001800876   0.979          1    
 # 6 2017 vs 2022  1 0.09878380 0.6922204 0.004885380   0.711          1  
+############################################ convex hulls visualising ##############################################################################
+
+library(ggplot2)
+library(dplyr)
+
+# Function to get convex hull for each group (here: year)
+hulls <- nmds_data |>
+  group_by(year) |>
+  slice(chull(NMDS1, NMDS2))  # convex hull points per year
+
+ggplot(nmds_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_polygon(data = hulls, aes(fill = factor(year), group = year), 
+               alpha = 0.2, color = NA) +
+  geom_path(data = hulls, aes(group = year), linewidth = 1, color = "black", alpha = 0.5) +
+  scale_color_manual(values = year_colors) +
+  scale_fill_manual(values = year_colors) +
+  theme_minimal() +
+  labs(color = "Year", fill = "Year") +
+  ggtitle("NMDS convex hulls by year — visualising community spread")
+
+############################################ convex hulls calculating ##############################################################################
+library(geometry)  # for convhulln and convhulln function
+
+# Function to compute 2D convex hull area
+hull_area <- function(df) {
+  pts <- df[, c("NMDS1", "NMDS2")]
+  if (nrow(pts) < 3) return(NA)  # too few points
+  hull <- chull(pts)
+  hull_coords <- pts[hull, ]
+  # polygon area using the shoelace formula
+  area <- abs(sum(hull_coords$NMDS1 * dplyr::lead(hull_coords$NMDS2) - 
+                    dplyr::lead(hull_coords$NMDS1) * hull_coords$NMDS2, 
+                  na.rm = TRUE)) / 2
+  return(area)
+}
+
+# Apply per year
+hull_areas <- nmds_data |>
+  group_by(year) |>
+  summarise(
+    n_points = n(),
+    hull_area = hull_area(cur_data())
+  )
+
+print(hull_areas)
+
+plot(hull_areas)
 
 ####################################################################################################################################################
 ############################################ for each vegetation type ##############################################################################
@@ -236,42 +302,94 @@ nmds_data <- nmds_data |>
 # Get all unique vegetation types
 veg_types <- unique(nmds_data$veg_type)
 
-# Loop over veg_types and plot
+# Loop over veg_types and plot with ellipses and centroids
 for (veg in veg_types) {
+  
   plot_data <- nmds_data |>
-    subset(veg_type == veg)
+    filter(veg_type == veg)
+  
+  # Compute centroids for each year within this vegetation type
+  centroids <- plot_data |>
+    group_by(year) |>
+    summarise(
+      NMDS1 = mean(NMDS1, na.rm = TRUE),
+      NMDS2 = mean(NMDS2, na.rm = TRUE)
+    )
   
   p <- plot_data |>
-    ggplot(aes(x = NMDS1, y = NMDS2, shape = factor(year))) +
-    geom_point(size = 3, color = "black") +             # black points for clarity
+    ggplot(aes(x = NMDS1, y = NMDS2, 
+               shape = factor(year),
+               color = factor(year))) +
+    geom_point(size = 3) +
     geom_path(aes(group = vt_section), color = "gray50", linetype = "dashed") +
+    stat_ellipse(type = "t", linewidth = 1) +
+    geom_point(data = centroids, 
+               aes(x = NMDS1, y = NMDS2, color = factor(year)), 
+               shape = 4, size = 4, stroke = 1.5) +
     scale_shape_manual(values = year_shapes) +
+    scale_color_manual(values = year_colors) +
     theme_minimal() +
-    labs(shape = "Year") +
-    ggtitle(paste("NMDS trajectories - Vegetation type:", veg))
+    labs(shape = "Year", color = "Year") +
+    ggtitle(paste("NMDS trajectories with ellipses -", veg))
   
-  print(p)  # prints plot to R graphics window
+  print(p)
 }
 
-# Define shapes for years
-year_shapes <- c("2007" = 16,  # circle
-                 "2012" = 15,  # square
-                 "2017" = 17,  # triangle
-                 "2022" = 18)  # diamond
+####################################################################################################################################################
+######################################### pairwise adonis vegetation types #########################################################################
 
-nmds_data |>
-  ggplot(aes(x = NMDS1, y = NMDS2,
-             shape = factor(year),
-             color = veg_type)) +
-  geom_point(size = 3) +
-  geom_path(aes(group = vt_section), color = "gray50", linetype = "dashed") +
-  scale_shape_manual(values = year_shapes) +
-  scale_color_viridis(discrete = TRUE, option = "D") +  # color-blind-friendly
-  theme_minimal() +
-  labs(shape = "Year", color = "Vegetation type") +
-  ggtitle("NMDS trajectories of vegetation sections over time")
+# Example assumptions:
+# df = your main data frame
+# df$vegtype = vegetation type factor
+# df$year = factor with survey years
+# comm = community matrix (species abundances) with same row order as df
 
-#### quantifying direction change ####
+# Run PERMANOVA by vegetation type
+results_list <- list()
+
+for (vt in unique(df$vegtype)) {
+  sub_df <- df %>% filter(vegtype == vt)
+  sub_comm <- comm[rownames(comm) %in% rownames(sub_df), ]
+  
+  # Ensure there are at least 2 years with >1 sample each
+  year_counts <- table(sub_df$year)
+  valid_years <- names(year_counts[year_counts > 1])
+  
+  if (length(valid_years) < 2) {
+    message(paste("Skipping", vt, "- not enough samples per year"))
+    next
+  }
+  
+  # Subset to valid years
+  sub_df <- sub_df[sub_df$year %in% valid_years, ]
+  sub_comm <- sub_comm[rownames(sub_comm) %in% rownames(sub_df), ]
+  
+  # Pairwise comparisons
+  year_pairs <- combn(valid_years, 2, simplify = FALSE)
+  
+  for (pair in year_pairs) {
+    sub_pair_df <- sub_df[sub_df$year %in% pair, ]
+    sub_pair_comm <- sub_comm[rownames(sub_comm) %in% rownames(sub_pair_df), ]
+    
+    if (nrow(sub_pair_df) < 4) next  # skip if too few total samples
+    
+    perm <- adonis2(sub_pair_comm ~ year, data = sub_pair_df, method = "bray", permutations = 999)
+    
+    results_list[[paste(vt, pair[1], pair[2], sep = "_")]] <- data.frame(
+      vegtype = vt,
+      year1 = pair[1],
+      year2 = pair[2],
+      F_value = perm$F[1],
+      R2 = perm$R2[1],
+      p_value = perm$`Pr(>F)`[1]
+    )
+  }
+}
+
+pairwise_results <- bind_rows(results_list)
+pairwise_results
+####################################################################################################################################################
+######################################### quantifying direction change ##############################################################################
 
 # Ensure data is sorted by section and year
 nmds_data <- nmds_data |>
