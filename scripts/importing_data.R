@@ -1,10 +1,11 @@
 # data prepping
 
+#######################################################################################################################################
 # Load necessary libraries
 library(dplyr)
 library(readr)
 library(readxl)
-
+#######################################################################################################################################
 # Define the path to the subfolder containing your CSV files
 data_folder <- "data"
 
@@ -27,7 +28,7 @@ read_and_standardize <- function(file) {
   
   return(df)
 }
-
+#######################################################################################################################################
 # read the functional types files #
 eco_veg_growth_forms <- read_excel("data/eco_veg_growth_forms.xlsx")
 View(eco_veg_growth_forms)
@@ -54,6 +55,17 @@ merged_data$func_type <- as.factor(merged_data$func_type)
 merged_data$ecoveg_gfc <- as.factor(merged_data$ecoveg_gfc)
 merged_data$ecoveg_sgfc <- as.factor(merged_data$ecoveg_sgfc)
 summary(merged_data)
+
+merged_data<- merged_data |> 
+  filter(!is.na(func_type)) |>  
+  mutate(subsection = case_when(
+    plot >= 1  & plot <= 5  ~ paste(vt_section, "1", sep = "."),
+    plot >= 6  & plot <= 10 ~ paste(vt_section, "2", sep = "."),
+    plot >= 11 & plot <= 15 ~ paste(vt_section, "3", sep = "."),
+    plot >= 16 & plot <= 20 ~ paste(vt_section, "4", sep = "."),
+    TRUE ~ NA_character_
+  ))
+merged_data$subsection <- as.factor(merged_data$subsection)
 
 write_rds(merged_data, "data/merged_data.rds")
 View(merged_data)
