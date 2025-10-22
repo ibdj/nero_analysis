@@ -13,7 +13,7 @@ library(pairwiseAdonis)
 ####################################### loading data ############################################
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
-  select(year,vt_section,plot_id,veg_type,taxon_code,presence,species,ecoveg_gfc) |> 
+  select(year,vt_section,plot_id,veg_type,taxon_code,presence,species,ecoveg_gfc,ecoveg_sgfc) |> 
   filter(veg_type != "saltmarsh")
 
 summary(merged_data)
@@ -121,7 +121,7 @@ nmds_data |>
   scale_shape_manual(values = year_shapes) +
   theme_minimal() +
   labs(shape = "Year", color = "Year") +
-  ggtitle("NMDS trajectories of vegetation sections over time (all vegetation types)")
+  ggtitle("NMDS trajectories of vegetation sections over time (all vegetation types !saltmarsh)")
 ######################################## visualising for all veg types WITH ELIPSES AND CENTERS ########################################
 
 # Compute centroid (mean NMDS position) per year
@@ -254,7 +254,7 @@ ggplot(nmds_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
   geom_point(size = 3, alpha = 0.7) +
   geom_polygon(data = hulls, aes(fill = factor(year), group = year), 
                alpha = 0.2, color = NA) +
-  geom_path(data = hulls, aes(group = year), linewidth = 1, color = "black", alpha = 0.5) +
+  geom_path(data = hulls, aes(group = year), linewidth = 0, color = "black", alpha = 0.5) +
   scale_color_manual(values = year_colors) +
   scale_fill_manual(values = year_colors) +
   theme_minimal() +
@@ -288,6 +288,39 @@ hull_areas <- nmds_data |>
 print(hull_areas)
 
 plot(hull_areas)
+
+############################################ convex hulls sizes pr veg type pr year #############################################################
+hull_areas_veg <- nmds_data |>
+  group_by(veg_type, year) |>
+  summarise(
+    n_points = n(),
+    hull_area = hull_area(cur_data())
+  )
+
+print(hull_areas_veg)
+
+ggplot(hull_areas_veg, aes(x = as.numeric(as.character(year)), y = hull_area, group = veg_type, color = veg_type)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~veg_type, scales = "free_y") +
+  theme_minimal() +
+  labs(x = "Year", y = "Convex hull area", 
+       title = "Convex hull areas per vegetation type over time")
+
+############################################ change in dispersion #############################################################
+
+bray_dist <- vegdist(species_mat, method = "bray")
+bd <- betadisper(bray_dist, nmds_data$year)
+anova(bd)
+TukeyHSD(bd)
+
+# Analysis of Variance Table
+# 
+# Response: Distances
+# Df Sum Sq  Mean Sq F value Pr(>F)
+# Groups      3 0.0056 0.001870  0.1194 0.9486
+# Residuals 283 4.4305 0.015655  
+
 
 ####################################################################################################################################################
 ############################################ for each vegetation type ##############################################################################
