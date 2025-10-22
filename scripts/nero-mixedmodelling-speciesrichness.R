@@ -43,6 +43,7 @@ pred_df <- ggeffects::ggpredict(m1, terms = "year")
 # Plot
 ggplot(richness.df, aes(x = year, y = richness)) +
   geom_jitter(aes(group = plot_id), width = 0.3, alpha = 0.2, color = "#01ad7f") +
+  geom_boxplot(aes(group = factor(year)), outlier.shape = NA, fill = "lightblue", alpha = 0.1, color = "gray30", width = 0.7) +
   geom_line(
     data = as.data.frame(pred_df),
     aes(x = x, y = predicted),
