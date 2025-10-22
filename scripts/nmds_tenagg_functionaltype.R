@@ -11,10 +11,11 @@ library(remotes)
 library(pairwiseAdonis)
 
 
+
 ####################################### loading data ############################################
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
-  select(year,vt_section,plot_id,veg_type,taxon_code,presence,species,ecoveg_gfc) |> 
+  select(year,vt_section,plot_id,veg_type,taxon_code,presence,species,ecoveg_gfc, ecoveg_sgfc) |> 
   filter(veg_type != "saltmarsh")
 
 summary(merged_data)
@@ -23,11 +24,11 @@ names(merged_data)
 #"year"       "vt_section" "plot_id"    "veg_type"   "taxon_code" "presence"   "species"    "ecoveg_gfc"
 
 tenaggr_functype <- merged_data |> 
-  group_by(year, vt_section, veg_type, ecoveg_gfc) |> 
+  group_by(year, vt_section, veg_type, ecoveg_sgfc) |> 
   summarise(count = n())
 
 tenaggr_functype_wide <- tenaggr_functype |> 
-  pivot_wider(names_from = "ecoveg_gfc", values_from = "count", values_fill = 0)
+  pivot_wider(names_from = "ecoveg_sgfc", values_from = "count", values_fill = 0)
 
 head(tenaggr_functype_wide)
 
@@ -35,7 +36,7 @@ head(tenaggr_functype_wide)
 
 nmds_all <- tenaggr_functype_wide |>
   ungroup() |>
-  select(-year, -vt_section, -veg_type, -`NA`) |>
+  select(-year, -vt_section, -veg_type) |>
   mutate(across(everything(), as.numeric)) |>
   metaMDS(distance = "bray", k = 2, trymax = 100)
 
@@ -176,3 +177,24 @@ ggplot(nmds_points, aes(x = MDS1, y = MDS2)) +
     colour = "Vegetation type",
     fill = "Year"
   )
+
+####################################### beta dispersion ############################################
+
+# Ungroup and select only numeric columns
+func_data <- tenaggr_functype_wide |>
+  ungroup() |>                 # remove grouping
+  select(where(is.numeric)) |> # keep only numeric columns
+  select(-year, -vt_section)   # remove columns not part of functional types
+
+# Compute Bray-Curtis distance
+bray_dist <- vegdist(func_data, method = "bray")
+# Grouping factor: year
+years <- tenaggr_functype_wide$year
+
+# Beta dispersion
+beta_disp <- betadisper(bray_dist, group = years)
+
+# Inspect results
+beta_disp
+
+permutest(beta_disp, permutations = 999)
