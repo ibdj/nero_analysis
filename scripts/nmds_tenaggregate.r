@@ -335,13 +335,27 @@ nmds_data <- nmds_data |>
 # Get all unique vegetation types
 veg_types <- unique(nmds_data$veg_type)
 
-# Loop over veg_types and plot with ellipses and centroids
+# Function to find convex hull points
+find_hull <- function(df) df[chull(df$NMDS1, df$NMDS2), ]
+
+hulls <- plot_data |>
+  group_by(year) |>
+  group_modify(~find_hull(.x))
+
+plots <- list()
+
+# Loop over veg types
 for (veg in veg_types) {
   
   plot_data <- nmds_data |>
     filter(veg_type == veg)
   
-  # Compute centroids for each year within this vegetation type
+  # Compute convex hulls per year
+  hulls <- plot_data |>
+    group_by(year) |>
+    group_modify(~find_hull(.x))
+  
+  # Compute centroids per year
   centroids <- plot_data |>
     group_by(year) |>
     summarise(
@@ -349,24 +363,35 @@ for (veg in veg_types) {
       NMDS2 = mean(NMDS2, na.rm = TRUE)
     )
   
-  p <- plot_data |>
-    ggplot(aes(x = NMDS1, y = NMDS2, 
-               shape = factor(year),
-               color = factor(year))) +
+  # Plot
+  p <- ggplot(plot_data, aes(x = NMDS1, y = NMDS2,
+                             shape = factor(year),
+                             color = factor(year))) +
+    geom_polygon(data = hulls,
+                 aes(fill = factor(year), group = year),
+                 color = NA, alpha = 0.2) +
     geom_point(size = 3) +
-    geom_path(aes(group = vt_section), color = "gray50", linetype = "dashed") +
-    stat_ellipse(type = "t", linewidth = 1) +
-    geom_point(data = centroids, 
-               aes(x = NMDS1, y = NMDS2, color = factor(year)), 
+    #stat_ellipse(type = "t", linewidth = 1) +
+    geom_point(data = centroids,
+               aes(x = NMDS1, y = NMDS2, color = factor(year)),
                shape = 4, size = 4, stroke = 1.5) +
     scale_shape_manual(values = year_shapes) +
     scale_color_manual(values = year_colors) +
+    scale_fill_manual(values = year_colors) +
     theme_minimal() +
-    labs(shape = "Year", color = "Year") +
-    ggtitle(paste("NMDS trajectories with ellipses -", veg))
+    labs(shape = "Year", color = "Year", fill = "Year") +
+    ggtitle(paste("NMDS with convex hulls -", veg))
   
-  print(p)
+  plots[[veg]] <- p
 }
+plots[[veg]]
+
+library(patchwork)
+
+# Arrange all six plots (2 rows × 3 columns, for example)
+combined_plot <- wrap_plots(plots, ncol = 2)
+
+combined_plot
 
 ####################################################################################################################################################
 ######################################### pairwise adonis vegetation types #########################################################################
