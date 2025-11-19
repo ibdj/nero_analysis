@@ -6,7 +6,7 @@ library(lmerTest)
 library(ggplot2)
 library(ggeffects)
 
-##################################################### loading data
+######################### loading data ################################
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds")
 
 names(merged_data)
@@ -17,38 +17,26 @@ richness.df <- merged_data |>
 
 names(richness.df)
 
-##################################################### mixed linear modelling
+######################### mixed linear modelling species plot richness ####
 
+m_richness <- lmer(richness ~ year + (1|plot_id), data = richness.df)
+summary(m_richness)
 
-m1 <- lmer(richness ~ year + (1|plot_id), data = richness.df)
-summary(m1)
-
-
-
-######################### centering year
-# richness.df <- richness.df |> mutate(year_c = year - mean(year))
-# m2 <- lmer(richness ~ year_c + (1|plot_id), data = richness.df)
-# summary(m2)
-# 
-# ######################### all plots increase/decrease equally, allow random slopes
-# m3 <- lmer(richness ~ year_c + (year_c|plot_id), data = richness.df)
-# summary(m3)
-
-##################################################### visualisering
+######################### visualisering plot species richness ####
 
 
 # Get model predictions (with CI)
-pred_df <- ggeffects::ggpredict(m1, terms = "year")
+pred_df <- ggeffects::ggpredict(m_richness, terms = "year")
 
 # Plot
 ggplot(richness.df, aes(x = year, y = richness)) +
   geom_jitter(aes(group = plot_id), width = 0.3, alpha = 0.2, color = "#01ad7f") +
-  geom_boxplot(aes(group = factor(year)), outlier.shape = NA, fill = "lightblue", alpha = 0.1, color = "gray30", width = 0.7) +
+  geom_boxplot(aes(group = factor(year)), outlier.shape = NA, fill = "lightblue", alpha = 0.5, color = "gray30", width = 0.7) +
   geom_line(
     data = as.data.frame(pred_df),
     aes(x = x, y = predicted),
     color = "#004d38",
-    size = 1.2,
+    linewidth = 1.2,
     inherit.aes = FALSE
   ) +
   geom_ribbon(
@@ -64,6 +52,16 @@ ggplot(richness.df, aes(x = year, y = richness)) +
     x = "Year",
     y = "Species richness per plot",
     title = "Change in species richness over time",
-    subtitle = paste0("Linear mixed model: p = ", 
-                      formatC(summary(m1)$coefficients["year", "Pr(>|t|)"], format = "e", digits = 2))
+    subtitle = paste0("Linear mixed model (p = ", 
+                      formatC(summary(m_richness)$coefficients["year", "Pr(>|t|)"], format = "e", digits = 2),")")
   )
+
+
+
+######################### EVENNESS #########################
+
+######################### SHANNON #########################
+
+######################### TURNOVER #########################
+
+
