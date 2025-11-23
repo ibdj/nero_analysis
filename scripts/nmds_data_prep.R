@@ -23,6 +23,9 @@ community_matrix <- merged_data_summary |>
   pivot_wider(names_from = taxon_code, values_from = presence, values_fill = 0) |>
   column_to_rownames(var = "plot_year_vt")
 
+community_matrix <- community_matrix |> 
+  filter(if_any(where(is.numeric), ~ . != 0))
+
 #### nmds ############ 
 
 # Set seed for reproducibility
