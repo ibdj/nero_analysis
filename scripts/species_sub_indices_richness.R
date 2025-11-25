@@ -1,4 +1,4 @@
-##################################################### loading packages
+#### loading packages ####
 
 library(tidyverse)
 library(lme4)
@@ -8,7 +8,7 @@ library(ggeffects)
 library(vegan)
 library(codyn) # turnover calculations
 
-######################### loading data ################################
+#### loading data ################################
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
   group_by(year, subsection) |> 
@@ -33,156 +33,168 @@ richness_sub_df <- species_sub_long |>
 
 names(richness_sub_df)
 
-######################### mixed linear modelling species plot richness ####
+#### mixed linear modelling species plot richness ####
 
 m_richness_sub <- lmer(richness ~ year + (1|subsection), data = richness_sub_df)
 summary(m_richness_sub)
 
-######################### visualisering plot species richness ####
+#### visualisering plot species richness ####
 
 
-# Get model predictions (with CI)
-pred_df <- ggeffects::ggpredict(m_richness_sub, terms = "year")
+# Get model predictions for richhness
+pred_richness <- ggeffects::ggpredict(m_richness_sub, terms = "year")
 
-# Plot
+# Plot observed and predicted evenness
 ggplot(richness_sub_df, aes(x = year, y = richness)) +
-  geom_jitter(aes(group = subsection), width = 0.2, alpha = 0.2, color = "#01ad7f") +
+  geom_jitter(aes(group = subsection), width = 0.2, alpha = 0.2, color = "#076834") +
   geom_boxplot(aes(group = factor(year)), outlier.shape = NA, alpha = 0.5, color = "gray30", width = 0.6) +
   geom_line(
-    data = as.data.frame(pred_df),
+    data = as.data.frame(pred_richness),
     aes(x = x, y = predicted),
-    color = "#004d38",
+    linetype = "dashed",
+    color = "#076834",
     linewidth = 1.2,
     inherit.aes = FALSE
   ) +
   geom_ribbon(
-    data = as.data.frame(pred_df),
+    data = as.data.frame(pred_richness),
     aes(x = x, ymin = conf.low, ymax = conf.high),
-    fill = "#004d38",
+    fill = "#076834",
     alpha = 0.2,
     inherit.aes = FALSE
   ) +
   scale_x_continuous(breaks = c(2007, 2012, 2017, 2022)) +
-  #  theme_bw(base_size = 13) +
   labs(
     x = "Year",
-    y = "Species richness per plot",
-    title = "Change in species richness over time",
-    subtitle = paste0("Linear mixed model (p = ", 
-                      formatC(summary(m_richness_sub)$coefficients["year", "Pr(>|t|)"], format = "e", digits = 2),")")
+    y = "Richness (species pr subsection)",
+    title = "Change in richness over time",
+    subtitle = paste0("Linear mixed model (p = ",
+                      formatC(summary(m_richness_sub)$coefficients["year", "Pr(>|t|)"], digits = 4, format = "f"), ")")
   )
 
+#### EVENNESS #########################
+str(species_sub_long)
 
-######################### EVENNESS #########################
-
-# evenness not applicable for pres/abs data
-evenness_species <- species_plot |>
-  # count abundance per taxon in each plot-year
-  count(year, vt_section, plot, plot_id, veg_type, taxon_code, name = "abundance") |>
+species_sub_long <- species_sub_long |> 
+  filter(taxon_code != "rock") |> 
+  mutate(abundance = fraction_sub) |> 
+  distinct()
   
+evenness_species <- species_sub_long |> 
   # compute diversity per plot-year
-  group_by(year, vt_section, plot, plot_id, veg_type) |>
+  group_by(year, subsection, veg_type) |>
   summarise(
     H = diversity(abundance, index = "shannon"),
     S = n(),                          # number of taxa
     J = ifelse(S > 1, H / log(S), NA_real_),
     .groups = "drop"
   )
+
 head(evenness_species)
 
-species_plot %>% 
-  count(year, plot_id, taxon_code) %>% 
-  count(year, plot_id) %>% 
-  summarise(
-    S = n(),
-    H = diversity(rep(1, n()), index = "shannon"),
-    J = H / log(S)
-  )
-
-######################### SHANNON #########################
 
 
+#### evenness model ############################################################
 
-shannon_df <- species_plot |>
-  group_by(year, plot_id, veg_type) |>
-  summarise(
-    S = n(),                                 # richness = count of taxa
-    H = diversity(rep(1, S), index = "shannon"),  # Shannon index
-    .groups = "drop"
-  ) |> 
-  filter(!is.na(year))
 
-head(shannon_df)
+m_evenness_sub <- lmer(J ~ year + (1|subsection), data = evenness_species)
+summary(m_evenness_sub)
 
-m_shannon <- lmer(H ~ year + (1 | plot_id), data = shannon_df)
-summary(m_shannon)
+#### evenness visualisation ############################################################
+# Get model predictions (with CI) for evenness
+pred_evenness <- ggeffects::ggpredict(m_evenness_sub, terms = "year")
 
-######################### SHANNON visualisation #########################
-
-# Recreate predicted values only at the actual survey years
-pred_shannon <- ggpredict(
-  m_shannon,
-  terms = c("year [2007,2012,2017,2022]")  # specify the years you want predictions for
-)
-
-# Convert x to factor for plotting
-pred_shannon_plot <- pred_shannon %>% 
-  filter(!is.na(x)) %>%
-  mutate(x = factor(x))
-
-shannon_df |>
-  ggplot(aes(x = factor(year), y = H)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.7, width = 0.7) +
-  geom_jitter(
-    width = 0.1,
-    alpha = 0.35,
-    size = 1.1,
-    color = "grey30"
+# Plot observed and predicted evenness
+ggplot(evenness_species, aes(x = year, y = J)) +
+  geom_boxplot(aes(group = factor(year)), outlier.shape = NA, alpha = 0.5, color = "gray30", width = 0.6) +
+  geom_line(
+    data = as.data.frame(pred_evenness),
+    aes(x = x, y = predicted),
+    color = "#017fad",
+    linewidth = 1.2,
+    inherit.aes = FALSE
   ) +
   geom_ribbon(
-    data = pred_shannon_plot,
-    aes(x = factor(x), ymin = conf.low, ymax = conf.high, group = 1),
-    inherit.aes = FALSE,
-    fill = "blue",
-    alpha = 0.15
+    data = as.data.frame(pred_evenness),
+    aes(x = x, ymin = conf.low, ymax = conf.high),
+    fill = "#017fad",
+    alpha = 0.2,
+    inherit.aes = FALSE
   ) +
+  geom_jitter(aes(group = subsection), width = 0.2, alpha = 0.2, color = "#017fad") +
+  scale_x_continuous(breaks = c(2007, 2012, 2017, 2022)) +
+  labs(
+    x = "Year",
+    y = "Evenness (Pielou's J)",
+    title = "Change in evenness over time",
+    subtitle = paste0("Linear mixed model (p = ",
+                      formatC(summary(m_evenness_sub)$coefficients["year", "Pr(>|t|)"], format = "e", digits = 2), ")")
+  )
+
+
+#### SHANNON #########################
+
+
+m_shannon <- lmer(H ~ year + (1 | subsection), data = evenness_species)
+summary(m_shannon)
+
+#### SHANNON visualisation #########################
+
+library(ggplot2)
+library(ggeffects)
+
+# Get model predictions
+pred_shannon <- ggpredict(m_shannon, terms = "year") |> as.data.frame()
+
+# Extract p-value for year effect from model summary
+pval_shannon <- summary(m_shannon)$coefficients["year", "Pr(>|t|)"]
+
+# Get model predictions (with CI) for Shannon diversity
+pred_shannon <- ggeffects::ggpredict(m_shannon, terms = "year")
+
+# Plot observed and predicted Shannon diversity
+ggplot(evenness_species, aes(x = year, y = H)) +
+  geom_jitter(aes(group = subsection), width = 0.2, alpha = 0.2, color = "#017fad") +
+  geom_boxplot(aes(group = factor(year)), outlier.shape = NA, alpha = 0.5, color = "gray30", width = 0.6) +
   geom_line(
-    data = pred_shannon_plot,
-    aes(x = factor(x), y = predicted, group = 1),
-    inherit.aes = FALSE,
-    color = "blue",
-    linewidth = 1.2
+    data = as.data.frame(pred_shannon),
+    aes(x = x, y = predicted),
+    color = "#017fad",
+    linewidth = 1.2,
+    inherit.aes = FALSE
   ) +
-  scale_x_discrete(na.translate = FALSE) +   # <- hide NA tick
+  geom_ribbon(
+    data = as.data.frame(pred_shannon),
+    aes(x = x, ymin = conf.low, ymax = conf.high),
+    fill = "#017fad",
+    alpha = 0.2,
+    inherit.aes = FALSE
+  ) +
+  scale_x_continuous(breaks = c(2007, 2012, 2017, 2022)) +
   labs(
     x = "Year",
     y = "Shannon diversity (H)",
-    title = "Shannon diversity across years (observed + model predictions)"
-  ) +
-  theme_minimal(base_size = 13)
+    title = "Change in Shannon diversity over time",
+    subtitle = paste0("Linear mixed model (p = ",
+                      formatC(summary(m_shannon)$coefficients["year", "Pr(>|t|)"], digits = 4, format = "f"), ")")
+  )
 
 
-######################### TURNOVER #########################
-
-# Prepare data with native pipe and remove duplicates
-species_long <- species_plot |>
-  select(year, plot_id, taxon_code) |>
-  mutate(abundance = 1) |>
-  distinct()
+#### TURNOVER #########################
 
 # Check number of unique years per plot
-plot_years <- species_long |>
-  group_by(plot_id) |>
+plot_years <- species_sub_long |>
+  group_by(subsection) |>
   summarise(n_years = n_distinct(year), .groups = "drop")
 
 # Filter plots with at least 2 years (turnover requires temporal comparison)
 valid_plots <- plot_years |>
   filter(n_years > 1) |>
-  pull(plot_id)
+  pull(subsection)
 
 # Filter data to valid plots only
-species_long_filtered <- species_long |>
-  filter(plot_id %in% valid_plots)
+species_long_filtered <- species_sub_long |>
+  filter(subsection %in% valid_plots)
 
 # Calculate turnover per plot between years
 turnover_results <- turnover(
@@ -190,16 +202,16 @@ turnover_results <- turnover(
   time.var = "year",
   species.var = "taxon_code",
   abundance.var = "abundance",
-  replicate.var = "plot_id",
+  replicate.var = "subsection",
   metric = "total"
 )
 
 head(turnover_results)
 
 
-######################### TURNOVER visualisation ####
+#### TURNOVER visualisation ####
 # 2. Fit linear mixed model: turnover by year with random intercept for plot
-m_turnover <- lmer(total ~ year + (1 | plot_id), data = turnover_results)
+m_turnover <- lmer(total ~ year + (1 | subsection), data = turnover_results)
 
 # 3. Generate predicted values at observed years
 pred_turnover <- ggpredict(m_turnover, terms = c("year"))
@@ -209,9 +221,9 @@ pred_turnover_plot <- pred_turnover |>
   mutate(year = as.numeric(x))  # convert x (character) to numeric for plotting
 
 # 5. Boxplot + jitter for observed turnover, line + ribbon for predicted
-ggplot(turnover_results, aes(x = factor(year), y = total)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
-  geom_jitter(width = 0.15, alpha = 0.35, size = 1.1, color = "grey30") +
+ggplot(turnover_results, aes(x = factor(year), y = total)) + 
+  geom_boxplot(aes(group = factor(year)), outlier.shape = NA, alpha = 0.5, color = "gray30", width = 0.4) +
+  geom_jitter(aes(group = subsection), width = 0.15, alpha = 0.2, color = "#017fad") +
   geom_ribbon(
     data = pred_turnover_plot,
     aes(x = factor(year), ymin = conf.low, ymax = conf.high, group = 1),
@@ -229,11 +241,18 @@ ggplot(turnover_results, aes(x = factor(year), y = total)) +
   labs(
     x = "Year",
     y = "Turnover",
-    title = "Species turnover across years (observed + predicted)"
-  ) +
-  theme_minimal(base_size = 13)
+    title = "Species turnover across years (observed + predicted)",
+    subtitle = paste0(
+      "Linear mixed model (p = ",
+      formatC(summary(m_turnover)$coefficients["year", "Pr(>|t|)"], format = "e", digits = 2),
+      ")"
+  )) 
 
-######################### combined plots ####
+plot(resid(m_turnover))   
+qqnorm(resid(m_turnover)); qqline(resid(m_turnover))    # Normality
+qqnorm(ranef(m_turnover)$group$`(Intercept)`); qqline(ranef(m_turnover)$group$`(Intercept)`)
+
+#### combined plots ####
 
 # 1. Prepare predicted data frames with numeric year and original scale values
 
