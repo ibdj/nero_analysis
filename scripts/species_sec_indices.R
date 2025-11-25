@@ -154,6 +154,7 @@ ggplot(evenness_species, aes(x = year, y = H)) +
     data = as.data.frame(pred_shannon),
     aes(x = x, y = predicted),
     color = "#076834",
+    linetype = "dashed",
     linewidth = 1.2,
     inherit.aes = FALSE
   ) +
@@ -173,3 +174,73 @@ ggplot(evenness_species, aes(x = year, y = H)) +
                       formatC(summary(m_shannon)$coefficients["year", "Pr(>|t|)"], digits = 4, format = "f"), ")")
   )
 
+#### TURNOVER #########################
+
+# Check number of unique years per plot
+plot_years <- species_sec_long |>
+  group_by(section) |>
+  summarise(n_years = n_distinct(year), .groups = "drop")
+
+# Filter plots with at least 2 years (turnover requires temporal comparison)
+valid_plots <- plot_years |>
+  filter(n_years > 1) |>
+  pull(section)
+
+# Filter data to valid plots only
+species_long_filtered <- species_sec_long |>
+  filter(section %in% valid_plots)
+
+# Calculate turnover per plot between years
+turnover_results <- turnover(
+  df = species_long_filtered,
+  time.var = "year",
+  species.var = "taxon_code",
+  abundance.var = "abundance",
+  replicate.var = "section",
+  metric = "total"
+)
+
+head(turnover_results)
+
+
+#### TURNOVER visualisation ####
+# 2. Fit linear mixed model: turnover by year with random intercept for plot
+m_turnover <- lmer(total ~ year + (1 | section), data = turnover_results)
+
+# 3. Generate predicted values at observed years
+pred_turnover <- ggpredict(m_turnover, terms = c("year"))
+
+# 4. Prepare predicted data for plotting
+pred_turnover_plot <- pred_turnover |>
+  mutate(year = as.numeric(x))  # convert x (character) to numeric for plotting
+
+# 5. Boxplot + jitter for observed turnover, line + ribbon for predicted
+ggplot(turnover_results, aes(x = factor(year), y = total)) + 
+  geom_boxplot(aes(group = factor(year)), outlier.shape = NA, alpha = 0.5, color = "gray30", width = 0.4) +
+  geom_jitter(aes(group = section), width = 0.15, alpha = 0.2, color = "#076834") +
+  geom_ribbon(
+    data = pred_turnover_plot,
+    aes(x = factor(year), ymin = conf.low, ymax = conf.high, group = 1),
+    inherit.aes = FALSE,
+    fill = "#076834",
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = pred_turnover_plot,
+    aes(x = factor(year), y = predicted, group = 1),
+    inherit.aes = FALSE,
+    color = "#076834",
+    linewidth = 1.2
+  ) +
+  labs(
+    x = "Year",
+    y = "Turnover",
+    title = "Species turnover across years (observed + predicted)",
+    subtitle = paste0(
+      "Linear mixed model (p = ",
+      formatC(summary(m_turnover)$coefficients["year", "Pr(>|t|)"], digits = 4, format = "f"), ")")
+    ) 
+
+plot(resid(m_turnover))   
+qqnorm(resid(m_turnover)); qqline(resid(m_turnover))    # Normality
+qqnorm(ranef(m_turnover)$group$`(Intercept)`); qqline(ranef(m_turnover)$group$`(Intercept)`)
