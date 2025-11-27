@@ -158,7 +158,61 @@ print(permutest_result)
 # Optional: plot the dispersions
 plot(dispersion, hull = TRUE, ellipse = TRUE, main = "Beta Dispersion by Year")
 
-#### pairwise PERMANOVA ###################################################
+#### disp distance test ###################################################
+dispersion      # your betadisper result
+distances <- dispersion$distances  # vector of distances
+groups <- metadata_agg$year
+
+disp_df <- data.frame(
+  year = groups,
+  distance = as.numeric(dispersion$distances)
+)
+
+disp_df$plot_year_vt <- metadata_agg$plot_year_vt
+
+disp_df <- disp_df %>%
+  left_join(metadata_agg %>% select(plot_year_vt, plot_id, veg_type), by = "plot_year_vt")
+
+# Example model: distance explained by year, with random intercept for section
+
+str(disp_df$year)
+lmm_func_plot <- lmer(distance ~ year.x + (1 | plot_id), data = disp_df)
+
+summary(lmm_func_plot)
+
+# Generate predicted values across observed years
+pred_distance <- ggpredict(lmm_func_plot, terms = c("year.x"))
+
+# Prepare predicted data for plotting: convert x (year) to numeric if needed
+pred_distance_plot <- pred_distance %>%
+  mutate(year_num = as.numeric(x))  # x is factor or character representing years
+
+# Plot observed distances (boxplot + jitter) + predicted line + confidence ribbon
+ggplot(disp_df, aes(x = factor(year.x), y = distance)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 1.1, color = "#076834") +
+  geom_ribbon(
+    data = pred_distance_plot,
+    aes(x = factor(x), ymin = conf.low, ymax = conf.high, group = 1),
+    inherit.aes = FALSE,
+    fill = "#076834",
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = pred_distance_plot,
+    aes(x = factor(x), y = predicted, group = 1),
+    inherit.aes = FALSE,
+    color = "#076834",
+    size = 1.2
+  ) +
+  labs(
+    x = "Year",
+    y = "Distance to centroid",
+    title = "Distance to year centroid (observed + predicted)"
+  ) +
+  theme_minimal(base_size = 13)
+
+#### pairwise PERMANOVA ##########distance#### pairwise PERMANOVA ###################################################
 
 # Prepare dataset, same as before
 metadata_agg <-  func_plot |> 
