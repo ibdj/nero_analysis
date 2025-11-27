@@ -258,20 +258,20 @@ pairwise_adonis <- function(dist_matrix, factors, permutations = 999) {
   #for each vegetation type
   
   # Get unique vegetation types
-  veg_types <- unique(species_sub_long$veg_type)
+  veg_types <- unique(func_plot$veg_type)
   
   # Function to run NMDS and generate plot for one veg_type
   run_nmds_for_veg <- function(vt) {
     cat("Processing vegetation type:", vt, "\n")
     
     # Filter metadata and community matrix rows for this vegetation type
-    plot_metadata_vt <- species_sub_long %>%
+    plot_metadata_vt <- func_plot %>%
       filter(veg_type == vt) %>%
-      mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) %>%
-      distinct(sub_year_vt, year, veg_type)
+      mutate(plot_year_vt = paste(plot_id, year, veg_type, sep = "_")) %>%
+      distinct(plot_year_vt, year, veg_type)
     
     # Filter community matrix by matching rows (plot_year_vt)
-    rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$sub_year_vt
+    rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$plot_year_vt
     community_matrix_vt <- community_matrix[rows_to_keep, ]
     
     # Run NMDS on subset
@@ -281,11 +281,11 @@ pairwise_adonis <- function(dist_matrix, factors, permutations = 999) {
     
     # Extract site scores
     nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
-    nmds_scores$sub_year_vt <- rownames(nmds_scores)
+    nmds_scores$plot_year_vt <- rownames(nmds_scores)
     
     # Merge with metadata
     nmds_plot_data <- nmds_scores %>%
-      left_join(plot_metadata_vt, by = "sub_year_vt") %>%
+      left_join(plot_metadata_vt, by = "plot_year_vt") %>%
       mutate(year = factor(year))
     
     # Convex hull function
