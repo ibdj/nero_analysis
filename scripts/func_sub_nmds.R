@@ -11,7 +11,8 @@ library(purrr)
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
   group_by(year, subsection) |> 
   mutate(no_plots = n_distinct(plot_id)) |> 
-  ungroup()
+  ungroup() |> 
+  filter(taxon_code != "rock")
 
 species_sub_long <- merged_data |>
   group_by(year, subsection, veg_type, taxon_code, no_plots, ecoveg_sgfc) |>
@@ -26,6 +27,9 @@ species_sub_long <- merged_data |>
 func_sub_frac_sum <- species_sub_long |> 
   group_by(year, subsection, veg_type, ecoveg_sgfc) |> 
   reframe(frac_sum = sum(fraction_sub))
+
+func_sub_wide <- func_sub_frac_sum |> 
+  pivot_wider(names_from = ecoveg_sgfc, values_from = frac_sum, values_fill = 0)
 
 
   
