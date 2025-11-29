@@ -12,7 +12,7 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
   group_by(year, subsection) |> 
   mutate(no_plots = n_distinct(plot_id)) |> 
   ungroup() |> 
-  filter(taxon_code != "rock")
+  filter(taxon_code != "rock", no_plots > 1)
 
 species_sub_long <- merged_data |>
   group_by(year, subsection, veg_type, taxon_code, no_plots, ecoveg_sgfc) |>
@@ -24,12 +24,20 @@ species_sub_long <- merged_data |>
   filter(veg_type != "saltmarsh", no_plots != 1) |> 
   distinct(year, subsection, veg_type, ecoveg_sgfc, taxon_code, no_plots, fraction_sub)
 
+unique(func_sub_frac_sum$ecoveg_sgfc)
+
 func_sub_frac_sum <- species_sub_long |> 
   group_by(year, subsection, veg_type, ecoveg_sgfc) |> 
   reframe(frac_sum = sum(fraction_sub))
 
 func_sub_wide <- func_sub_frac_sum |> 
-  pivot_wider(names_from = ecoveg_sgfc, values_from = frac_sum, values_fill = 0)
+  pivot_wider(names_from = ecoveg_sgfc, values_from = frac_sum, values_fill = 0) |> 
+  rename(graminoid = herb_graminoid, bryophyte = non_vascular_bryophyte, decidous = shrub_decidous, evergreen = shrub_evergreen, lichen = non_vascular_lichen)
+
+community_matrix <- func_sub_wide |> 
+  unite("sub_year_vt", subsection, year,veg_type, sep = "_", remove = FALSE) |> 
+  column_to_rownames(var = "sub_year_vt") |> 
+  select(-year, -subsection, -veg_type)
 
 
   
