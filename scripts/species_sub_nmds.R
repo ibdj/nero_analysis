@@ -202,7 +202,7 @@ pairwise_adonis <- function(dist_matrix, factors, permutations = 999) {
         p.value = ad$`Pr(>F)`[1]
       )
       results[[paste(group1, group2, sep = "_vs_")]] <- res
-  }
+  }}
   do.call(rbind, results)
 }
 
