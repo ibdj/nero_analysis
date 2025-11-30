@@ -40,4 +40,100 @@ community_matrix <- func_sub_wide |>
   select(-year, -subsection, -veg_type)
 
 
-  
+#### NMDS ######################################################################
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Run NMDS on presence/absence community matrix
+nmds_result <- metaMDS(community_matrix, k = 3, trymax = 100)
+
+print(nmds_result)
+
+nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
+
+nrow(community_matrix)
+nrow(nmds_scores) 
+
+# Extract NMDS scores for plots
+nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
+nmds_scores$sub_year_vt <- rownames(nmds_scores)
+
+#### NMDS visualisation ######################################################################## 
+
+# Add plot_year_vt as a column to nmds_scores for merging
+nmds_scores$sub_year_vt <- rownames(nmds_scores)
+
+plot_metadata <- merged_data |>
+  mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |>
+  select(sub_year_vt, year, veg_type) |> 
+  distinct()
+
+# Merge NMDS site scores with metadata using plot_year_vt as key
+# Convert year to factor (if not already)
+nmds_plot_data <- nmds_scores |>
+  left_join(plot_metadata, by = "sub_year_vt") |>
+  mutate(year = factor(year))  # convert year to factor for plotting
+
+# Define function to safely compute convex hull
+find_hull <- function(df) {
+  df <- na.omit(df)  # remove NA rows
+  if(nrow(df) < 3) {  # chull requires at least 3 points
+    return(df)
+  } else {
+    df[chull(df$NMDS1, df$NMDS2), ]
+  }
+}
+
+# Calculate hulls grouping strictly by year
+hulls <- nmds_plot_data |>
+  group_by(year) |>
+  do(find_hull(.))
+
+hulls_closed <- hulls |>
+  group_by(year) |>
+  do({
+    df <- .
+    if(nrow(df) > 1) {
+      df <- rbind(df, df[1, ])  # Add first row at the end to close polygon
+    }
+    df
+  })
+
+centroids <- nmds_plot_data |>
+  group_by(year) |>
+  summarize(centroid_NMDS1 = mean(NMDS1),
+            centroid_NMDS2 = mean(NMDS2))
+
+# Generate NMDS plot
+ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = factor(year))) +
+  geom_polygon(data = hulls_closed, aes(fill = factor(year), group = factor(year)), alpha = 0.2, color = NA) +
+  geom_path(data = hulls_closed, aes(group = factor(year)), color = "white", size = 0.2) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_point(data = centroids, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = factor(year)),
+             shape = 21, size = 5, color = "black") +
+  theme_minimal() +
+  labs(shape = "Vegetation Type", color = "Year", fill = "Year", title = "NMDS Ordination with Year Centroids") +
+  theme(legend.position = "right")
+
+ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
+  # centroids
+  geom_point(
+    data = centroids,
+    aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = factor(year)),
+    shape = 21, size = 5, color = "black", show.legend = FALSE
+  ) +
+  geom_text(
+    data = centroids,
+    aes(x = centroid_NMDS1, y = centroid_NMDS2, label = year),
+    vjust = -1.2, size = 4, color = "black", show.legend = FALSE
+  ) +
+  theme_minimal() +
+  labs(
+    title = "NMDS Ordination with Year Centroids"
+  ) +
+  guides(
+    color = "none",
+    fill  = "none"
+  ) +
+  theme(legend.position = "right")
