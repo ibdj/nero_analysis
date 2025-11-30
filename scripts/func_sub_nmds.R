@@ -137,3 +137,40 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
     fill  = "none"
   ) +
   theme(legend.position = "right")
+
+
+#### NMDS stats BETADISPER ######################################################################## 
+# within group variation testing. Done before adonis, because significant within group variation can make the interpretation of an Adonis result more complex.
+
+# Generate Bray-Curtis distance matrix (dist object)
+bray_dist <- vegdist(community_matrix, method = "bray")
+
+# Prepare your metadata ensuring it matches community_matrix rows exactly
+metadata <- merged_data %>%
+  mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) %>%
+  filter(sub_year_vt %in% rownames(community_matrix)) %>%
+  arrange(match(sub_year_vt, rownames(community_matrix))) |> 
+  distinct(sub_year_vt, year, veg_type)
+
+# Check row counts
+nrow(metadata)
+nrow(community_matrix)
+attr(bray_dist, "Labels")   # sample names used in bray_dist
+
+# Verify matching identifiers
+all(rownames(community_matrix) == metadata$sub_year_vt)  # should be TRUE
+all(attr(bray_dist, "Labels") == rownames(community_matrix))  # should be TRUE
+
+# Calculate Bray-Curtis distance on presence/absence community matrix
+bray_dist <- vegdist(community_matrix, method = "bray")
+
+# Perform betadisper to calculate multivariate dispersions by year
+dispersion <- betadisper(bray_dist, group = as.factor(metadata$year))
+
+# Test for significant differences in dispersion among years (permutation test)
+permutest_result <- permutest(dispersion)
+
+print(permutest_result)
+
+# Optional: plot the dispersions
+plot(dispersion, hull = TRUE, ellipse = TRUE, main = "Beta Dispersion by Year")
