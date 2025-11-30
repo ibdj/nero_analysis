@@ -138,7 +138,6 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
   ) +
   theme(legend.position = "right")
 
-
 #### NMDS stats BETADISPER ######################################################################## 
 # within group variation testing. Done before adonis, because significant within group variation can make the interpretation of an Adonis result more complex.
 
@@ -174,3 +173,44 @@ print(permutest_result)
 
 # Optional: plot the dispersions
 plot(dispersion, hull = TRUE, ellipse = TRUE, main = "Beta Dispersion by Year")
+
+#### pairwise PERMANOVA ###################################################
+
+# Prepare dataset, same as before
+metadata_agg <- species_sub_long |> 
+  mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |> 
+  distinct(sub_year_vt, year, veg_type) |> 
+  arrange(match(sub_year_vt, rownames(community_matrix)))
+
+nrow(metadata_agg)
+
+stopifnot(nrow(metadata_agg) == nrow(community_matrix))
+stopifnot(all(metadata_agg$sub_year_vt == rownames(community_matrix)))
+
+# Function for pairwise PERMANOVA between levels of a factor
+pairwise_adonis <- function(dist_matrix, factors, permutations = 999) {
+  levels <- unique(factors)
+  results <- list()
+  for(i in 1:(length(levels)-1)) {
+    for(j in (i+1):length(levels)) {
+      group1 <- levels[i]
+      group2 <- levels[j]
+      idx <- which(factors %in% c(group1, group2))
+      sub_dist <- as.dist(as.matrix(dist_matrix)[idx, idx])
+      sub_factors <- droplevels(factors[idx])
+      ad <- adonis2(sub_dist ~ sub_factors, permutations = permutations)
+      res <- data.frame(
+        group1 = group1,
+        group2 = group2,
+        F.Model = ad$F[1],
+        R2 = ad$R2[1],
+        p.value = ad$`Pr(>F)`[1]
+      )
+      results[[paste(group1, group2, sep = "_vs_")]] <- res
+    }}
+  do.call(rbind, results)
+}
+
+# Run pairwise PERMANOVA on years
+pairwise_results <- pairwise_adonis(bray_dist, as.factor(metadata_agg$year))
+print(pairwise_results)
