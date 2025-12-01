@@ -214,3 +214,84 @@ pairwise_adonis <- function(dist_matrix, factors, permutations = 999) {
 # Run pairwise PERMANOVA on years
 pairwise_results <- pairwise_adonis(bray_dist, as.factor(metadata_agg$year))
 print(pairwise_results)
+
+#### NMDS for each vegetation type ######################################################################
+#for each vegetation type
+
+# Get unique vegetation types
+veg_types <- unique(species_sub_long$veg_type)
+
+# Function to run NMDS and generate plot for one veg_type
+run_nmds_for_veg <- function(vt) {
+  cat("Processing vegetation type:", vt, "\n")
+  
+  # Filter metadata and community matrix rows for this vegetation type
+  plot_metadata_vt <- species_sub_long %>%
+    filter(veg_type == vt) %>%
+    mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) %>%
+    distinct(sub_year_vt, year, veg_type)
+  
+  # Filter community matrix by matching rows (plot_year_vt)
+  rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$sub_year_vt
+  community_matrix_vt <- community_matrix[rows_to_keep, ]
+  
+  # Run NMDS on subset
+  set.seed(42)
+  nmds_result <- metaMDS(community_matrix_vt, k = 3, trymax = 100)
+  cat("Stress:", nmds_result$stress, "\n")
+  
+  # Extract site scores
+  nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
+  nmds_scores$sub_year_vt <- rownames(nmds_scores)
+  
+  # Merge with metadata
+  nmds_plot_data <- nmds_scores %>%
+    left_join(plot_metadata_vt, by = "sub_year_vt") %>%
+    mutate(year = factor(year))
+  
+  # Convex hull function
+  find_hull <- function(df) {
+    df <- na.omit(df)
+    if(nrow(df) < 3) return(df)
+    df[chull(df$NMDS1, df$NMDS2), ]
+  }
+  
+  # Hulls by year
+  hulls <- nmds_plot_data %>%
+    group_by(year) %>%
+    do(find_hull(.))
+  
+  hulls_closed <- hulls %>%
+    group_by(year) %>%
+    do({
+      df <- .
+      if(nrow(df) > 1) df <- rbind(df, df[1, ])
+      df
+    })
+  
+  # Calculate centroids
+  centroids <- nmds_plot_data %>%
+    group_by(year) %>%
+    summarize(centroid_NMDS1 = mean(NMDS1),
+              centroid_NMDS2 = mean(NMDS2))
+  
+  # Generate plot
+  p <- ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = factor(year))) +
+    geom_polygon(data = hulls_closed, aes(fill = factor(year), group = factor(year)), alpha = 0.2, color = NA) +
+    geom_path(data = hulls_closed, aes(group = factor(year)), color = "white", size = 0.2) +
+    geom_point(size = 3, alpha = 0.7) +
+    geom_point(data = centroids, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = factor(year)),
+               shape = 21, size = 5, color = "black") +
+    theme_minimal() +
+    labs(shape = "Vegetation Type", color = "Year", fill = "Year",
+         title = paste("NMDS Ordination with Year Centroids for", vt)) +
+    theme(legend.position = "right")
+  
+  print(p)
+  
+  return(list(nmds_result = nmds_result, plot = p))
+}
+
+# Run for all veg_types
+results_list <- map(veg_types, run_nmds_for_veg)
+names(results_list) <- veg_types
