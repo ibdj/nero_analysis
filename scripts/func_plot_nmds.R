@@ -254,7 +254,7 @@ pairwise_adonis <- function(dist_matrix, factors, permutations = 999) {
   pairwise_results <- pairwise_adonis(bray_dist, as.factor(metadata_agg$year))
   print(pairwise_results)
   
-  #### NMDS for each vegetation type ######################################################################  
+#### NMDS for each vegetation type ######################################################################  
   #for each vegetation type
   
   # Get unique vegetation types
