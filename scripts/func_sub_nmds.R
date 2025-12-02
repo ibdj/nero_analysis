@@ -5,6 +5,8 @@ library(vegan)
 library(dplyr)
 library(ggplot2)
 library(purrr)
+library(lme4)
+library(lmerTest)
 
 #### importing data ####
 
@@ -174,12 +176,66 @@ print(permutest_result)
 # Optional: plot the dispersions
 plot(dispersion, hull = TRUE, ellipse = TRUE, main = "Beta Dispersion by Year")
 
+#### disp distance test ###################################################
+dispersion      # your betadisper result
+distances <- dispersion$distances  # vector of distances
+groups <- metadata_agg$year
+
+disp_df <- data.frame(
+  year = groups,
+  distance = as.numeric(dispersion$distances)
+)
+
+disp_df$sub_year_vt <- metadata_agg$sub_year_vt
+
+disp_df <- disp_df %>%
+  left_join(metadata_agg %>% select(sub_year_vt, subsection, veg_type), by = "sub_year_vt")
+
+# Example model: distance explained by year, with random intercept for section
+names(disp_df)
+
+str(disp_df$year)
+lmm_func_sub <- lmer(distance ~ year + (1 | subsection), data = disp_df)
+
+summary(lmm_func_plot)
+
+# Generate predicted values across observed years
+pred_distance <- ggpredict(lmm_func_plot, terms = c("year.x"))
+
+# Prepare predicted data for plotting: convert x (year) to numeric if needed
+pred_distance_plot <- pred_distance %>%
+  mutate(year_num = as.numeric(x))  # x is factor or character representing years
+
+# Plot observed distances (boxplot + jitter) + predicted line + confidence ribbon
+ggplot(disp_df, aes(x = factor(year.x), y = distance)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 1.1, color = "#076834") +
+  geom_ribbon(
+    data = pred_distance_plot,
+    aes(x = factor(x), ymin = conf.low, ymax = conf.high, group = 1),
+    inherit.aes = FALSE,
+    fill = "#076834",
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = pred_distance_plot,
+    aes(x = factor(x), y = predicted, group = 1),
+    inherit.aes = FALSE,
+    color = "#076834",
+    size = 1.2
+  ) +
+  labs(
+    x = "Year",
+    y = "Distance to centroid",
+    title = "Distance to year centroid (observed + predicted)"
+  ) +
+  theme_minimal(base_size = 13)
 #### pairwise PERMANOVA ###################################################
 
 # Prepare dataset, same as before
 metadata_agg <- species_sub_long |> 
   mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |> 
-  distinct(sub_year_vt, year, veg_type) |> 
+  distinct(sub_year_vt, year, veg_type, subsection) |> 
   arrange(match(sub_year_vt, rownames(community_matrix)))
 
 nrow(metadata_agg)
