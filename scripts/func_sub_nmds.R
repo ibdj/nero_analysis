@@ -7,6 +7,7 @@ library(ggplot2)
 library(purrr)
 library(lme4)
 library(lmerTest)
+library(ggeffects)
 
 #### importing data ####
 
@@ -197,17 +198,17 @@ names(disp_df)
 str(disp_df$year)
 lmm_func_sub <- lmer(distance ~ year + (1 | subsection), data = disp_df)
 
-summary(lmm_func_plot)
+summary(lmm_func_sub)
 
 # Generate predicted values across observed years
-pred_distance <- ggpredict(lmm_func_plot, terms = c("year.x"))
+pred_distance <- ggpredict(lmm_func_sub, terms = c("year"))
 
 # Prepare predicted data for plotting: convert x (year) to numeric if needed
 pred_distance_plot <- pred_distance %>%
   mutate(year_num = as.numeric(x))  # x is factor or character representing years
 
 # Plot observed distances (boxplot + jitter) + predicted line + confidence ribbon
-ggplot(disp_df, aes(x = factor(year.x), y = distance)) +
+ggplot(disp_df, aes(x = factor(year), y = distance)) +
   geom_boxplot(outlier.shape = NA, alpha = 0.7) +
   geom_jitter(width = 0.15, alpha = 0.35, size = 1.1, color = "#076834") +
   geom_ribbon(
