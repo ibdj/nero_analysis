@@ -40,3 +40,22 @@ community_matrix <- func_sec_wide |>
   unite("sec_year_vt", section, year,veg_type, sep = "_", remove = FALSE) |> 
   column_to_rownames(var = "sec_year_vt") |> 
   select(-year, -section, -veg_type)
+
+#### NMDS ######################################################################
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Run NMDS on presence/absence community matrix
+nmds_result <- metaMDS(community_matrix, k = 3, trymax = 100)
+
+print(nmds_result)
+
+nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
+
+nrow(community_matrix)
+nrow(nmds_scores) 
+
+# Extract NMDS scores for plots
+nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
+nmds_scores$sub_year_vt <- rownames(nmds_scores)
