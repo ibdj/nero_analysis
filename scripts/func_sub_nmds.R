@@ -8,6 +8,7 @@ library(purrr)
 library(lme4)
 library(lmerTest)
 library(ggeffects)
+library(patchwork)
 
 #### importing data ####
 
@@ -42,6 +43,45 @@ community_matrix <- func_sub_wide |>
   column_to_rownames(var = "sub_year_vt") |> 
   select(-year, -subsection, -veg_type)
 
+#### shrub fraction ####
+
+names(func_sub_frac_sum)
+
+lmm_func_sub_shrub <- lmer(frac_sum ~ year + (1 | subsection), data = func_sub_frac_sum |> filter(ecoveg_sgfc == "shrub_decidous"))
+summary(lmm_func_sub_shrub)
+
+lmm_func_sub_shrub_factor <- lmer(frac_sum ~ factor(year) + (1 | subsection), data = func_sub_frac_sum |> filter(ecoveg_sgfc == "shrub_decidous"))
+summary(lmm_func_sub_shrub_factor)
+
+
+pred_frac_sum <- ggpredict(lmm_func_sub_shrub, terms = c("year"))
+
+pred_frac_sum_plot <- pred_frac_sum  |> 
+  mutate(year_num = as.numeric(x))
+
+ggplot(func_sub_frac_sum |> filter(ecoveg_sgfc == "shrub_decidous"), aes(x = factor(year), y = frac_sum)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 1.1, color = "#076834") +
+  geom_ribbon(
+    data = pred_frac_sum_plot,
+    aes(x = factor(x), ymin = conf.low, ymax = conf.high, group = 1),
+    inherit.aes = FALSE,
+    fill = "#076834",
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = pred_frac_sum,
+    aes(x = factor(x), y = predicted, group = 1),
+    inherit.aes = FALSE,
+    color = "#076834",
+    size = 1.2
+  ) +
+  labs(
+    x = "Year",
+    y = "Summed fraction of deciduous shrub",
+    title = "Summed of deciduous shrub in subsection"
+  ) +
+  theme_minimal(base_size = 13)
 
 #### NMDS ######################################################################
 
@@ -141,6 +181,61 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
   ) +
   theme(legend.position = "right")
 
+#### NMDS year-vegtype #####
+
+# Function to compute convex hull safely
+find_hull <- function(df) {
+  df <- na.omit(df)
+  if (nrow(df) < 3) return(df)
+  df[chull(df$NMDS1, df$NMDS2), ]
+}
+
+# Compute hulls per year and veg_type
+hulls <- nmds_plot_data %>%
+  group_by(year, veg_type) %>%
+  do(find_hull(.))
+
+# Close hull polygons
+hulls_closed <- hulls %>%
+  group_by(year, veg_type) %>%
+  do({
+    df <- .
+    if (nrow(df) > 1) df <- rbind(df, df[1, ])
+    df
+  })
+
+# Compute centroids per year and veg_type
+centroids <- nmds_plot_data %>%
+  group_by(year, veg_type) %>%
+  summarize(centroid_NMDS1 = mean(NMDS1),
+            centroid_NMDS2 = mean(NMDS2),
+            .groups = "drop")
+
+# Create separate plots for each year
+years <- unique(nmds_plot_data$year)
+
+plots <- lapply(years, function(y) {
+  df <- nmds_plot_data %>% filter(year == y)
+  hull_df <- hulls_closed %>% filter(year == y)
+  cent_df <- centroids %>% filter(year == y)
+  
+  ggplot(df, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = veg_type)) +
+    geom_polygon(data = hull_df, aes(fill = veg_type, group = veg_type), alpha = 0.2, color = NA) +
+    geom_path(data = hull_df, aes(group = veg_type), color = "white", size = 0.3) +
+    geom_point(size = 3, alpha = 0.7) +
+    geom_point(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = veg_type),
+               shape = 21, size = 5, color = "black") +
+    geom_text(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, label = veg_type),
+              vjust = -1.2, size = 3, color = "black") +
+    theme_minimal() +
+    labs(title = paste("NMDS for Year", y),
+         shape = "Vegetation Type", color = "Vegetation Type", fill = "Vegetation Type") +
+    theme(legend.position = "right")
+})
+
+# Combine plots in a grid
+wrap_plots(plots, ncol = 2)
+
 #### NMDS stats BETADISPER ######################################################################## 
 # within group variation testing. Done before adonis, because significant within group variation can make the interpretation of an Adonis result more complex.
 
@@ -231,6 +326,11 @@ ggplot(disp_df, aes(x = factor(year), y = distance)) +
     title = "Distance to year centroid (observed + predicted)"
   ) +
   theme_minimal(base_size = 13)
+#### disp distance test FACTOR ####
+
+lmm_func_sub_factor <- lmer(distance ~ factor(year) + (1 | subsection), data = disp_df)
+summary(lmm_func_sub)
+
 #### pairwise PERMANOVA ###################################################
 
 # Prepare dataset, same as before
@@ -276,20 +376,20 @@ print(pairwise_results)
 #for each vegetation type
 
 # Get unique vegetation types
-veg_types <- unique(species_sub_long$veg_type)
+veg_types <- unique(func_sec_wide$veg_type)
 
 # Function to run NMDS and generate plot for one veg_type
 run_nmds_for_veg <- function(vt) {
   cat("Processing vegetation type:", vt, "\n")
   
   # Filter metadata and community matrix rows for this vegetation type
-  plot_metadata_vt <- species_sub_long %>%
+  plot_metadata_vt <- func_sec_wide %>%
     filter(veg_type == vt) %>%
-    mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) %>%
-    distinct(sub_year_vt, year, veg_type)
+    mutate(sec_year_vt = paste(section, year, veg_type, sep = "_")) %>%
+    distinct(sec_year_vt, year, veg_type)
   
   # Filter community matrix by matching rows (plot_year_vt)
-  rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$sub_year_vt
+  rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$sec_year_vt
   community_matrix_vt <- community_matrix[rows_to_keep, ]
   
   # Run NMDS on subset
@@ -299,11 +399,11 @@ run_nmds_for_veg <- function(vt) {
   
   # Extract site scores
   nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
-  nmds_scores$sub_year_vt <- rownames(nmds_scores)
+  nmds_scores$sec_year_vt <- rownames(nmds_scores)
   
   # Merge with metadata
   nmds_plot_data <- nmds_scores %>%
-    left_join(plot_metadata_vt, by = "sub_year_vt") %>%
+    left_join(plot_metadata_vt, by = "sec_year_vt") %>%
     mutate(year = factor(year))
   
   # Convex hull function
