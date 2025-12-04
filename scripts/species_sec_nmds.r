@@ -11,7 +11,7 @@ library(remotes)
 library(pairwiseAdonis)
 library(patchwork)
 
-####################################### loading data ############################################
+#### loading data ############################################
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
   filter(veg_type != "saltmarsh", taxon_code != "rock") |> 
@@ -23,7 +23,7 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
 
 summary(merged_data)
 
-####################################### calculating percent pr plot ############################################
+#### calculating percent pr plot ############################################
 
 species_sec_long <- merged_data |>
   group_by(year, section, veg_type, taxon_code) |>
@@ -50,7 +50,7 @@ community_matrix <- species_sec_wide |>
   column_to_rownames(var = "sec_year_vt") |> 
   select(-year, -section, -veg_type)
 
-######################################## actual nmds ########################################
+#### actual nmds ########################################
 
 # Set seed for reproducibility
 set.seed(42)
