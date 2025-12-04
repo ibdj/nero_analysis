@@ -1,18 +1,16 @@
 #### packages ####
 
 library(tidyverse)
+library(viridis)
 library(vegan)
-library(dplyr)
-library(ggplot2)
-library(purrr)
+library(remotes)
+library(pairwiseAdonis)
+library(patchwork)
 
-
-#### nmds with subsections (5 plots) ####
-
-nero_subsection_summary <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nmds_nero/nmds_nero/data/nero_subsection_summary.rds")
-nero_subsection_summary <- as.data.frame(readRDS("~/nmds_nero/data/nero_subsection_summary.rds"))
+#### importing data ####
   
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
+  filter(veg_type != "saltmarsh", taxon_code != "rock") |> 
   group_by(year, subsection) |> 
   mutate(no_plots = n_distinct(plot_id)) |> 
   ungroup()
@@ -271,17 +269,21 @@ run_nmds_for_veg <- function(vt) {
               centroid_NMDS2 = mean(NMDS2))
   
   # Generate plot
-  p <- ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = factor(year))) +
+  p <- ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = factor(year), shape = factor(year))) +
     geom_polygon(data = hulls_closed, aes(fill = factor(year), group = factor(year)), alpha = 0.2, color = NA) +
     geom_path(data = hulls_closed, aes(group = factor(year)), color = "white", size = 0.2) +
-    geom_point(size = 3, alpha = 0.7) +
-    geom_point(data = centroids, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = factor(year)),
-               shape = 21, size = 5, color = "black") +
+    geom_point(size = 3, alpha = 0.7) +                                # points colored and shaped by year
+    geom_point(data = centroids,
+               aes(x = centroid_NMDS1, y = centroid_NMDS2),
+               shape = 21, size = 7, color = "black", fill = NA, stroke = 1) +
+    geom_point(data = centroids, 
+               aes(x = centroid_NMDS1, y = centroid_NMDS2, 
+                   color = factor(year), shape = factor(year), fill = factor(year)),
+               size = 5, stroke = 1) +  # stroke controls border thickness
     theme_minimal() +
-    labs(shape = "Vegetation Type", color = "Year", fill = "Year",
-         title = paste("NMDS Ordination with Year Centroids for", vt)) +
-    theme(legend.position = "right")
-  
+    labs(shape = "Year", color = "Year", fill = "Year",
+         title = paste("NMDS Year Centroids for", vt)) +
+    theme(legend.position = "inside", legend.justification.inside = c(0, 0))
   print(p)
   
   return(list(nmds_result = nmds_result, plot = p))
@@ -291,3 +293,8 @@ run_nmds_for_veg <- function(vt) {
 results_list <- map(veg_types, run_nmds_for_veg)
 names(results_list) <- veg_types
 
+# Extract just the ggplot objects
+plots <- lapply(results_list, `[[`, "plot")
+
+# Wrap them into a grid with 3 columns
+wrap_plots(plots, ncol = 3)
