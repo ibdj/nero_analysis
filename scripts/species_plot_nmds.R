@@ -1,5 +1,11 @@
+#### packages ####
+
 library(tidyverse)
+library(viridis)
 library(vegan)
+library(remotes)
+library(pairwiseAdonis)
+library(patchwork)
 
 #### Summarize duplicate rows before pivoting ##########################################################
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds")
