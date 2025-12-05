@@ -6,8 +6,11 @@ library(vegan)
 library(remotes)
 library(pairwiseAdonis)
 library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(purrr)
 
-#### Summarize duplicate rows before pivoting ##########################################################
+#### importing data ##########################################################
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds")
 
 names(merged_data)
@@ -225,13 +228,7 @@ print(pairwise_results)
 
 
 
-##########################################################################
-#for each vegetation type
-
-library(dplyr)
-library(ggplot2)
-library(purrr)
-library(vegan)
+#### NMDS for each vegetation type ######################################################################
 
 # Get unique vegetation types
 veg_types <- unique(merged_data_summary$veg_type)
