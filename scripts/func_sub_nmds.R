@@ -45,43 +45,65 @@ community_matrix <- func_sub_wide |>
 
 #### shrub fraction ####
 
-names(func_sub_frac_sum)
+# Helper that fits model + returns one plot for one ecoveg_sgfc subset
+fit_plot_frac_sum <- function(df_sub) {
+  grp_lab <- df_sub$ecoveg_sgfc[1]
+  
+  # fit model
+  m_sub <- lmer(frac_sum ~ year + (1 | subsection), data = df_sub)
+  
+  # predictions
+  pred_frac_sum <- ggpredict(m_sub, terms = "year") |>
+    as.data.frame()
+  
+  ggplot(df_sub, aes(x = factor(year), y = frac_sum)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+    geom_jitter(width = 0.15, alpha = 0.35, size = 1.1, color = "#076834") +
+    geom_ribbon(
+      data = pred_frac_sum,
+      aes(x = factor(x), ymin = conf.low, ymax = conf.high, group = 1),
+      inherit.aes = FALSE,
+      fill = "#076834",
+      alpha = 0.15
+    ) +
+    geom_line(
+      data = pred_frac_sum,
+      aes(x = factor(x), y = predicted, group = 1),
+      inherit.aes = FALSE,
+      color = "#076834",
+      size = 1.2
+    ) +
+    labs(
+      x = "Year",
+      y = "Summed fraction",
+      title = paste("Summed fraction of", grp_lab)
+    ) +
+    theme_minimal(base_size = 13)
+}
 
-lmm_func_sub_shrub <- lmer(frac_sum ~ year + (1 | subsection), data = func_sub_frac_sum |> filter(ecoveg_sgfc == "shrub_decidous"))
-summary(lmm_func_sub_shrub)
+# Split data by ecoveg_sgfc and apply function
+plots_by_group <- func_sub_frac_sum |>
+  group_split(ecoveg_sgfc) |>
+  map(fit_plot_frac_sum)
 
-lmm_func_sub_shrub_factor <- lmer(frac_sum ~ factor(year) + (1 | subsection), data = func_sub_frac_sum |> filter(ecoveg_sgfc == "shrub_decidous"))
-summary(lmm_func_sub_shrub_factor)
+# Name list elements
+names(plots_by_group) <- func_sub_frac_sum |>
+  distinct(ecoveg_sgfc) |>
+  pull(ecoveg_sgfc)
 
+# Example: print the plot for "shrub_decidous"
+plots_by_group[["shrub_decidous"]]
 
-pred_frac_sum <- ggpredict(lmm_func_sub_shrub, terms = c("year"))
+# Optionally name the list by ecoveg_sgfc
+names(plots_by_group) <- func_sub_frac_sum |>
+  distinct(ecoveg_sgfc) |>
+  pull(ecoveg_sgfc)
 
-pred_frac_sum_plot <- pred_frac_sum  |> 
-  mutate(year_num = as.numeric(x))
+# Combine all plots into a patchwork layout
+combined_plots <- reduce(plots_by_group, `+`) +
+  plot_layout(ncol = 2)  # adjust ncol as you like
 
-ggplot(func_sub_frac_sum |> filter(ecoveg_sgfc == "shrub_decidous"), aes(x = factor(year), y = frac_sum)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
-  geom_jitter(width = 0.15, alpha = 0.35, size = 1.1, color = "#076834") +
-  geom_ribbon(
-    data = pred_frac_sum_plot,
-    aes(x = factor(x), ymin = conf.low, ymax = conf.high, group = 1),
-    inherit.aes = FALSE,
-    fill = "#076834",
-    alpha = 0.15
-  ) +
-  geom_line(
-    data = pred_frac_sum,
-    aes(x = factor(x), y = predicted, group = 1),
-    inherit.aes = FALSE,
-    color = "#076834",
-    size = 1.2
-  ) +
-  labs(
-    x = "Year",
-    y = "Summed fraction of deciduous shrub",
-    title = "Summed of deciduous shrub in subsection"
-  ) +
-  theme_minimal(base_size = 13)
+combined_plots
 
 #### NMDS ######################################################################
 
@@ -373,7 +395,6 @@ pairwise_results <- pairwise_adonis(bray_dist, as.factor(metadata_agg$year))
 print(pairwise_results)
 
 #### NMDS for each vegetation type ######################################################################
-#for each vegetation type
 
 # Get unique vegetation types
 veg_types <- unique(func_sub_wide$veg_type)
