@@ -230,61 +230,6 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
   ) +
   theme(legend.position = "right")
 
-#### NMDS year-vegtype #####
-
-# Function to compute convex hull safely
-find_hull <- function(df) {
-  df <- na.omit(df)
-  if (nrow(df) < 3) return(df)
-  df[chull(df$NMDS1, df$NMDS2), ]
-}
-
-# Compute hulls per year and veg_type
-hulls <- nmds_plot_data %>%
-  group_by(year, veg_type) %>%
-  do(find_hull(.))
-
-# Close hull polygons
-hulls_closed <- hulls %>%
-  group_by(year, veg_type) %>%
-  do({
-    df <- .
-    if (nrow(df) > 1) df <- rbind(df, df[1, ])
-    df
-  })
-
-# Compute centroids per year and veg_type
-centroids <- nmds_plot_data %>%
-  group_by(year, veg_type) %>%
-  summarize(centroid_NMDS1 = mean(NMDS1),
-            centroid_NMDS2 = mean(NMDS2),
-            .groups = "drop")
-
-# Create separate plots for each year
-years <- unique(nmds_plot_data$year)
-
-plots <- lapply(years, function(y) {
-  df <- nmds_plot_data %>% filter(year == y)
-  hull_df <- hulls_closed %>% filter(year == y)
-  cent_df <- centroids %>% filter(year == y)
-  
-  ggplot(df, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = veg_type)) +
-    geom_polygon(data = hull_df, aes(fill = veg_type, group = veg_type), alpha = 0.2, color = NA) +
-    geom_path(data = hull_df, aes(group = veg_type), color = "white", size = 0.3) +
-    geom_point(size = 3, alpha = 0.7) +
-    geom_point(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = veg_type),
-               shape = 21, size = 5, color = "black") +
-    geom_text(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, label = veg_type),
-              vjust = -1.2, size = 3, color = "black") +
-    theme_minimal() +
-    labs(title = paste("NMDS for Year", y),
-         shape = "Vegetation Type", color = "Vegetation Type", fill = "Vegetation Type") +
-    theme(legend.position = "right")
-})
-
-# Combine plots in a grid
-wrap_plots(plots, ncol = 2)
-
 #### NMDS stats BETADISPER ######################################################################## 
 # within group variation testing. Done before adonis, because significant within group variation can make the interpretation of an Adonis result more complex.
 
@@ -421,7 +366,7 @@ pairwise_adonis <- function(dist_matrix, factors, permutations = 999) {
 pairwise_results <- pairwise_adonis(bray_dist, as.factor(metadata_agg$year))
 print(pairwise_results)
 
-#### NMDS for each vegetation type ######################################################################
+#### NMDS vegetation type - year ######################################################################
 
 # Get unique vegetation types
 veg_types <- unique(func_sub_wide$veg_type)
@@ -509,3 +454,123 @@ plots <- lapply(results_list, `[[`, "plot")
 
 # Wrap them into a grid with 3 columns
 wrap_plots(plots, ncol = 3)
+
+#### NMDS year-vegtype #####
+
+# Function to compute convex hull safely
+find_hull <- function(df) {
+  df <- na.omit(df)
+  if (nrow(df) < 3) return(df)
+  df[chull(df$NMDS1, df$NMDS2), ]
+}
+
+# Compute hulls per year and veg_type
+hulls <- nmds_plot_data %>%
+  group_by(year, veg_type) %>%
+  do(find_hull(.))
+
+# Close hull polygons
+hulls_closed <- hulls %>%
+  group_by(year, veg_type) %>%
+  do({
+    df <- .
+    if (nrow(df) > 1) df <- rbind(df, df[1, ])
+    df
+  })
+
+# Compute centroids per year and veg_type
+centroids <- nmds_plot_data %>%
+  group_by(year, veg_type) %>%
+  summarize(centroid_NMDS1 = mean(NMDS1),
+            centroid_NMDS2 = mean(NMDS2),
+            .groups = "drop")
+
+# Create separate plots for each year
+years <- unique(nmds_plot_data$year)
+
+plots <- lapply(years, function(y) {
+  df <- nmds_plot_data %>% filter(year == y)
+  hull_df <- hulls_closed %>% filter(year == y)
+  cent_df <- centroids %>% filter(year == y)
+  
+  ggplot(df, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = veg_type)) +
+    geom_polygon(data = hull_df, aes(fill = veg_type, group = veg_type), alpha = 0.2, color = NA) +
+    geom_path(data = hull_df, aes(group = veg_type), color = "white", size = 0.3) +
+    geom_point(size = 3, alpha = 0.7) +
+    geom_point(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = veg_type),
+               shape = 21, size = 5, color = "black") +
+    geom_text(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, label = veg_type),
+              vjust = -1.2, size = 3, color = "black") +
+    theme_minimal() +
+    labs(title = paste("NMDS for Year", y),
+         shape = "Vegetation Type", color = "Vegetation Type", fill = "Vegetation Type") +
+    theme(legend.position = "right")
+})
+
+# Combine plots in a grid
+wrap_plots(plots, ncol = 2)
+
+#### NMDS year-vegtype mean distance ####
+
+# centroids: year, veg_type, centroid_NMDS1, centroid_NMDS2
+
+centroids |>
+  summarise(
+    n = n(),
+    n_NA_x = sum(is.na(centroid_NMDS1)),
+    n_NA_y = sum(is.na(centroid_NMDS2))
+  )
+
+centroid_pairs <-
+  centroids |>
+  # self-join on year: all veg_type pairs within a year
+  inner_join(
+    centroids,
+    by = "year",
+    suffix = c("1", "2")
+  ) |>
+  # drop symmetric duplicates and self pairs
+  filter(as.character(veg_type1) < as.character(veg_type2)) |>
+  mutate(
+    dist = sqrt(
+      (centroid_NMDS11 - centroid_NMDS12)^2 +
+        (centroid_NMDS21 - centroid_NMDS22)^2
+    )
+  ) |>
+  select(
+    year,
+    veg_type1,
+    veg_type2,
+    dist
+  )
+
+centroid_dist_summary <-
+  centroid_pairs |>
+  group_by(year) |>
+  summarise(
+    mean_dist = mean(dist),
+    median_dist = median(dist),
+    sd_dist = sd(dist),
+    n_pairs = n(),
+    .groups = "drop"
+  )
+
+centroid_dist_summary
+
+ggplot(centroid_pairs, aes(x = factor(year), y = dist)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.7, size = 0.3) +
+  geom_jitter(width = 0.15, alpha = 0.4, size = 3, color = "#076834") +
+  labs(
+    x = "Year",
+    y = "Pairwise distance between veg-type centroids",
+    title = "Distances among vegetation-type centroids by year"
+  )
+
+centroid_dist_summary |>
+  mutate(year_num = as.numeric(as.character(year))) |>
+  with(cor.test(year_num, mean_dist, method = "kendall"))
+
+centroid_pairs |>
+  mutate(year = factor(year)) |>
+  aov(dist ~ year, data = _) |>
+  summary()
