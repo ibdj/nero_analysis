@@ -43,14 +43,50 @@ community_matrix <- func_sub_wide |>
   column_to_rownames(var = "sub_year_vt") |> 
   select(-year, -subsection, -veg_type)
 
+#### shrub fraction stats ####
+
+# Helper: fit model and return tidy stats for one ecoveg_sgfc subset
+fit_stats_frac_sum <- function(df_sub) {
+  grp_lab <- df_sub$ecoveg_sgfc[1]
+  
+  m_sub <- lmer(frac_sum ~ year + (1 | subsection), data = df_sub)
+  
+  broom.mixed::tidy(m_sub, effects = "fixed") |>
+    mutate(ecoveg_sgfc = grp_lab, .before = 1)
+}
+
+# Split data by ecoveg_sgfc
+sub_list <- func_sub_frac_sum |>
+  group_split(ecoveg_sgfc)
+
+# 1) Plots (as before)
+plots_by_group <- sub_list |>
+  map(fit_plot_frac_sum)
+
+names(plots_by_group) <- func_sub_frac_sum |>
+  distinct(ecoveg_sgfc) |>
+  pull(ecoveg_sgfc)
+
+# 2) Model stats table
+stats_by_group <- sub_list |>
+  map(fit_stats_frac_sum) |>
+  bind_rows()
+
+stats_by_group
+
 #### shrub fraction ####
 
-# Helper that fits model + returns one plot for one ecoveg_sgfc subset
 fit_plot_frac_sum <- function(df_sub) {
   grp_lab <- df_sub$ecoveg_sgfc[1]
   
   # fit model
   m_sub <- lmer(frac_sum ~ year + (1 | subsection), data = df_sub)
+  
+  # extract p-value for year
+  p_year <- summary(m_sub)$coefficients["year", "Pr(>|t|)"]
+  
+  # choose linetype based on p-value
+  lt <- if (p_year < 0.05) "solid" else "dashed"
   
   # predictions
   pred_frac_sum <- ggpredict(m_sub, terms = "year") |>
@@ -71,7 +107,8 @@ fit_plot_frac_sum <- function(df_sub) {
       aes(x = factor(x), y = predicted, group = 1),
       inherit.aes = FALSE,
       color = "#076834",
-      size = 1.2
+      linewidth = 1.2,
+      linetype = lt
     ) +
     labs(
       x = "Year",
@@ -86,22 +123,12 @@ plots_by_group <- func_sub_frac_sum |>
   group_split(ecoveg_sgfc) |>
   map(fit_plot_frac_sum)
 
-# Name list elements
 names(plots_by_group) <- func_sub_frac_sum |>
   distinct(ecoveg_sgfc) |>
   pull(ecoveg_sgfc)
 
-# Example: print the plot for "shrub_decidous"
-plots_by_group[["shrub_decidous"]]
-
-# Optionally name the list by ecoveg_sgfc
-names(plots_by_group) <- func_sub_frac_sum |>
-  distinct(ecoveg_sgfc) |>
-  pull(ecoveg_sgfc)
-
-# Combine all plots into a patchwork layout
 combined_plots <- reduce(plots_by_group, `+`) +
-  plot_layout(ncol = 2)  # adjust ncol as you like
+  plot_layout(ncol = 2)
 
 combined_plots
 
