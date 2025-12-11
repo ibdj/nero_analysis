@@ -426,3 +426,68 @@ plots <- lapply(years, function(y) {
 
 # Combine plots in a grid
 wrap_plots(plots, ncol = 2)  
+
+#### NMDS year-vegtype mean distance ####
+
+# centroids: year, veg_type, centroid_NMDS1, centroid_NMDS2
+
+centroids |>
+  summarise(
+    n = n(),
+    n_NA_x = sum(is.na(centroid_NMDS1)),
+    n_NA_y = sum(is.na(centroid_NMDS2))
+  )
+
+centroid_pairs <-
+  centroids |>
+  # self-join on year: all veg_type pairs within a year
+  inner_join(
+    centroids,
+    by = "year",
+    suffix = c("1", "2")
+  ) |>
+  # drop symmetric duplicates and self pairs
+  filter(as.character(veg_type1) < as.character(veg_type2)) |>
+  mutate(
+    dist = sqrt(
+      (centroid_NMDS11 - centroid_NMDS12)^2 +
+        (centroid_NMDS21 - centroid_NMDS22)^2
+    )
+  ) |>
+  select(
+    year,
+    veg_type1,
+    veg_type2,
+    dist
+  )
+
+centroid_dist_summary <-
+  centroid_pairs |>
+  group_by(year) |>
+  summarise(
+    mean_dist = mean(dist),
+    median_dist = median(dist),
+    sd_dist = sd(dist),
+    n_pairs = n(),
+    .groups = "drop"
+  )
+
+centroid_dist_summary
+
+ggplot(centroid_pairs, aes(x = factor(year), y = dist)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.7, size = 0.3) +
+  geom_jitter(width = 0.15, alpha = 0.4, size = 3, color = "#076834") +
+  labs(
+    x = "Year",
+    y = "Pairwise distance between veg-type centroids",
+    title = "Distances among vegetation-type centroids by year"
+  )
+
+centroid_dist_summary |>
+  mutate(year_num = as.numeric(as.character(year))) |>
+  with(cor.test(year_num, mean_dist, method = "kendall"))
+
+centroid_pairs |>
+  mutate(year = factor(year)) |>
+  aov(dist ~ year, data = _) |>
+  summary()
