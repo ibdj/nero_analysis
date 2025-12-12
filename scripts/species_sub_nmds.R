@@ -41,12 +41,6 @@ community_matrix <- read_rds("data/species_sub_wide.rds") |>
   column_to_rownames(var = "sub_year_vt") |> 
   select(-year, -subsection, -veg_type, -no_plots)
 
-prevalence <- merged_data |> 
-  group_by(year, taxon_code) |> 
-  summarise(count = n_distinct(plot_id)) |> 
-  pivot_wider(names_from ="year", values_from = "count", values_fill = 0 )
-
-
 #### NMDS ######################################################################
 
 # Set seed for reproducibility
@@ -131,7 +125,7 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = facto
   labs(shape = "Vegetation Type", color = "Year", fill = "Year", title = "NMDS Ordination with Year Centroids") +
   theme(legend.position = "right")
 
-#### NMDS stats BETADISPER ######################################################################## 
+#### NMDS stats BETADISPER ################################################################### 
 # within group variation testing. Done before adonis, because significant within group variation can make the interpretation of an Adonis result more complex.
 
 # Generate Bray-Curtis distance matrix (dist object)
@@ -298,6 +292,118 @@ plots <- lapply(results_list, `[[`, "plot")
 # Wrap them into a grid with 3 columns
 wrap_plots(plots, ncol = 3)
 
+#### testing mean distance within vegtype ####
+
+veg_types <- unique(merged_data_summary$veg_type)
+
+test_dist_to_centroid_by_veg <-
+  veg_types |>
+  purrr::map_dfr(\(vt) {
+    cat("Testing vegetation type:", vt, "\n")
+    
+    # 1) Metadata for this veg type
+    plot_metadata_vt <-
+      merged_data_summary |>
+      filter(veg_type == vt) |>
+      mutate(plot_year_vt = paste(plot_id, year, veg_type, sep = "_")) |>
+      distinct(plot_year_vt, year, veg_type)
+    
+    # 2) Subset community matrix
+    rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$plot_year_vt
+    community_matrix_vt <- community_matrix[rows_to_keep, , drop = FALSE]
+    
+    # Skip if too few rows
+    if (nrow(community_matrix_vt) < 3) {
+      return(tibble(
+        veg_type = vt,
+        p_value  = NA_real_,
+        note     = "too few samples for NMDS"
+      ))
+    }
+    
+    # 3) NMDS for this veg type
+    set.seed(42)
+    nmds_result <- metaMDS(community_matrix_vt, k = 3, trymax = 100, trace = FALSE)
+    
+    # 4) Site scores and merge with metadata
+    nmds_scores <-
+      scores(nmds_result, display = "sites") |>
+      as.data.frame() |>
+      tibble::rownames_to_column("plot_year_vt")
+    
+    nmds_plot_data <-
+      nmds_scores |>
+      left_join(plot_metadata_vt, by = "plot_year_vt") |>
+      mutate(year = factor(year))
+    
+    # 5) Centroids per year within this veg type
+    centroids <-
+      nmds_plot_data |>
+      group_by(year, veg_type) |>
+      summarise(
+        centroid_NMDS1 = mean(NMDS1),
+        centroid_NMDS2 = mean(NMDS2),
+        .groups = "drop"
+      )
+    
+    # 6) Distances to centroid
+    nmds_with_centroid <-
+      nmds_plot_data |>
+      left_join(centroids, by = c("year", "veg_type")) |>
+      mutate(
+        dist_to_centroid = sqrt(
+          (NMDS1 - centroid_NMDS1)^2 +
+            (NMDS2 - centroid_NMDS2)^2
+        )
+      )
+    
+    # 7) One value per plot_year_vt for ANOVA
+    dist_summary_vt <-
+      nmds_with_centroid |>
+      distinct(plot_year_vt, year, dist_to_centroid)
+    
+    # Guard against degenerate cases
+    if (n_distinct(dist_summary_vt$year) < 2) {
+      return(tibble(
+        veg_type = vt,
+        p_value  = NA_real_,
+        note     = "only one year present"
+      ))
+    }
+    
+    dist_aov_vt <- aov(dist_to_centroid ~ factor(year), data = dist_summary_vt)
+    p_val <- summary(dist_aov_vt)[[1]]["factor(year)", "Pr(>F)"]
+    
+    tibble(
+      veg_type = vt,
+      p_value  = p_val,
+      note     = NA_character_
+    )
+  })
+
+test_dist_to_centroid_by_veg
+
+#plotting the distances
+all_distances <-
+  purrr::map_dfr(
+    names(results_list),
+    \(vt) {
+      results_list[[vt]]$dist_data |>
+        mutate(veg_type = vt)
+    }
+  )
+
+ggplot(nmds_with_centroid,
+       aes(x = factor(year), y = dist_to_centroid)) +
+  geom_jitter(width = 0.15, alpha = 0.4, size = 1.5, color = "#076834") +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.1) +
+  facet_wrap(~ veg_type, scales = "free_y") +
+  labs(
+    x = "Year",
+    y = "Distance to centroid",
+    title = "Distances to year centroid within each vegetation type"
+  ) +
+  theme_minimal()
 #### NMDS year-vegtype #####
 
 # Function to compute convex hull safely
