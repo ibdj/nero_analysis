@@ -292,48 +292,50 @@ plots <- lapply(results_list, `[[`, "plot")
 # Wrap them into a grid with 3 columns
 wrap_plots(plots, ncol = 3)
 
-#### testing mean distance within vegtype ####
+#### testing mean distance within vegtype ####################################
 
-veg_types <- unique(merged_data_summary$veg_type)
+veg_types <- unique(species_sub_long$veg_type)
 
-test_dist_to_centroid_by_veg <-
+dist_and_tests <-
   veg_types |>
   purrr::map_dfr(\(vt) {
     cat("Testing vegetation type:", vt, "\n")
     
     # 1) Metadata for this veg type
     plot_metadata_vt <-
-      merged_data_summary |>
+      species_sub_wide |>
       filter(veg_type == vt) |>
-      mutate(plot_year_vt = paste(plot_id, year, veg_type, sep = "_")) |>
-      distinct(plot_year_vt, year, veg_type)
+      mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |>
+      distinct(sub_year_vt, year, veg_type)
     
     # 2) Subset community matrix
-    rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$plot_year_vt
+    rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$sub_year_vt
     community_matrix_vt <- community_matrix[rows_to_keep, , drop = FALSE]
     
-    # Skip if too few rows
     if (nrow(community_matrix_vt) < 3) {
       return(tibble(
         veg_type = vt,
-        p_value  = NA_real_,
-        note     = "too few samples for NMDS"
+        sub_year_vt = NA_character_,
+        year = NA,
+        dist_to_centroid = NA_real_,
+        p_value = NA_real_,
+        note = "too few samples for NMDS"
       ))
     }
     
-    # 3) NMDS for this veg type
+    # 3) NMDS
     set.seed(42)
     nmds_result <- metaMDS(community_matrix_vt, k = 3, trymax = 100, trace = FALSE)
     
-    # 4) Site scores and merge with metadata
+    # 4) Site scores + metadata
     nmds_scores <-
       scores(nmds_result, display = "sites") |>
       as.data.frame() |>
-      tibble::rownames_to_column("plot_year_vt")
+      tibble::rownames_to_column("sub_year_vt")
     
     nmds_plot_data <-
       nmds_scores |>
-      left_join(plot_metadata_vt, by = "plot_year_vt") |>
+      left_join(plot_metadata_vt, by = "sub_year_vt") |>
       mutate(year = factor(year))
     
     # 5) Centroids per year within this veg type
@@ -357,28 +359,29 @@ test_dist_to_centroid_by_veg <-
         )
       )
     
-    # 7) One value per plot_year_vt for ANOVA
+    # 7) One value per sub_year_vt for ANOVA
     dist_summary_vt <-
       nmds_with_centroid |>
-      distinct(plot_year_vt, year, dist_to_centroid)
+      distinct(sub_year_vt, year, veg_type, dist_to_centroid)
     
-    # Guard against degenerate cases
     if (n_distinct(dist_summary_vt$year) < 2) {
-      return(tibble(
-        veg_type = vt,
-        p_value  = NA_real_,
-        note     = "only one year present"
-      ))
+      return(
+        dist_summary_vt |>
+          mutate(
+            p_value = NA_real_,
+            note = "only one year present"
+          )
+      )
     }
     
     dist_aov_vt <- aov(dist_to_centroid ~ factor(year), data = dist_summary_vt)
     p_val <- summary(dist_aov_vt)[[1]]["factor(year)", "Pr(>F)"]
     
-    tibble(
-      veg_type = vt,
-      p_value  = p_val,
-      note     = NA_character_
-    )
+    dist_summary_vt |>
+      mutate(
+        p_value = p_val,
+        note = NA_character_
+      )
   })
 
 test_dist_to_centroid_by_veg
@@ -393,8 +396,10 @@ all_distances <-
     }
   )
 
-ggplot(nmds_with_centroid,
-       aes(x = factor(year), y = dist_to_centroid)) +
+ggplot(
+  dist_and_tests |> filter(!is.na(dist_to_centroid)),
+  aes(x = factor(year), y = dist_to_centroid)
+) +
   geom_jitter(width = 0.15, alpha = 0.4, size = 1.5, color = "#076834") +
   geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.1) +
   facet_wrap(~ veg_type, scales = "free_y") +
