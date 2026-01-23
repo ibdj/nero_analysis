@@ -33,13 +33,12 @@ richness_sub_df <- species_sub_long |>
 
 names(richness_sub_df)
 
-#### mixed linear modelling species plot richness ####
+#### richness mlm ####
 
 m_richness_sub <- lmer(richness ~ year + (1|subsection), data = richness_sub_df)
 summary(m_richness_sub)
 
-#### visualisering plot species richness ####
-
+#### richness visualisation ####
 
 # Get model predictions for richhness
 pred_richness <- ggeffects::ggpredict(m_richness_sub, terms = "year")
@@ -70,7 +69,8 @@ ggplot(richness_sub_df, aes(x = year, y = richness)) +
     title = "Change in richness over time",
     subtitle = paste0("Linear mixed model (p = ",
                       formatC(summary(m_richness_sub)$coefficients["year", "Pr(>|t|)"], digits = 4, format = "f"), ")")
-  )
+  )+
+  theme_minimal()
 
 #### EVENNESS #########################
 str(species_sub_long)
@@ -92,10 +92,7 @@ evenness_species <- species_sub_long |>
 
 head(evenness_species)
 
-
-
-#### evenness model ############################################################
-
+#### evenness mlm ############################################################
 
 m_evenness_sub <- lmer(J ~ year + (1|subsection), data = evenness_species)
 summary(m_evenness_sub)
@@ -134,14 +131,12 @@ ggplot(evenness_species, aes(x = year, y = J)) +
 
 #### SHANNON #########################
 
+shannon_df <- evenness_species
 
-m_shannon <- lmer(H ~ year + (1 | subsection), data = evenness_species)
-summary(m_shannon)
+m_shannon_sub <- lmer(H ~ year + (1 | subsection), data = evenness_species)
+summary(m_shannon_sub)
 
 #### SHANNON visualisation #########################
-
-library(ggplot2)
-library(ggeffects)
 
 # Get model predictions
 pred_shannon <- ggpredict(m_shannon, terms = "year") |> as.data.frame()
@@ -211,7 +206,7 @@ head(turnover_results)
 
 #### TURNOVER visualisation ####
 # 2. Fit linear mixed model: turnover by year with random intercept for plot
-m_turnover <- lmer(total ~ year + (1 | subsection), data = turnover_results)
+m_turnover_sub <- lmer(total ~ year + (1 | subsection), data = turnover_results)
 
 # 3. Generate predicted values at observed years
 pred_turnover <- ggpredict(m_turnover, terms = c("year"))
@@ -257,7 +252,7 @@ qqnorm(ranef(m_turnover)$group$`(Intercept)`); qqline(ranef(m_turnover)$group$`(
 # 1. Prepare predicted data frames with numeric year and original scale values
 
 # Richness predictions
-pred_richness <- ggpredict(m_richness, terms = "year") |>
+pred_richness <- ggpredict(m_richness_sub, terms = "year") |>
   as.data.frame() |>
   mutate(year = as.numeric(x),
          metric = "Richness",
@@ -267,7 +262,7 @@ pred_richness <- ggpredict(m_richness, terms = "year") |>
   select(year, value, conf.low, conf.high, metric)
 
 # Shannon predictions
-pred_shannon <- ggpredict(m_shannon, terms = c("year [2007,2012,2017,2022]")) |>
+pred_shannon <- ggpredict(m_shannon_sub, terms = c("year [2007,2012,2017,2022]")) |>
   as.data.frame() |>
   mutate(year = as.numeric(x),
          metric = "Shannon",
@@ -277,7 +272,7 @@ pred_shannon <- ggpredict(m_shannon, terms = c("year [2007,2012,2017,2022]")) |>
   select(year, value, conf.low, conf.high, metric)
 
 # Turnover predictions
-pred_turnover <- ggpredict(m_turnover, terms = c("year")) |>
+pred_turnover <- ggpredict(m_turnover_sub, terms = c("year")) |>
   as.data.frame() |>
   mutate(year = as.numeric(x),
          metric = "Turnover",
@@ -305,13 +300,14 @@ scale_with_params <- function(x) {
 ### 1. SCALE OBSERVED DATA BY METRIC, STORING MIN/MAX
 
 ## Richness
-rich_scale <- scale_with_params(richness.df$richness)
-richness_obs_scaled <- richness.df |>
+rich_scale <- scale_with_params(richness_sub_df$richness)
+richness_obs_scaled <- richness_sub_df |>
   mutate(
     value  = rich_scale$scaled,
     metric = "Richness"
   ) |>
-  select(year, plot_id, value, metric)
+  select(year, subsection, value, metric) |> 
+  mutate(subsection = as.double(subsection))
 
 ## Shannon
 shan_scale <- scale_with_params(shannon_df$H)
@@ -320,7 +316,8 @@ shannon_obs_scaled <- shannon_df |>
     value  = shan_scale$scaled,
     metric = "Shannon"
   ) |>
-  select(year, plot_id, value, metric)
+  select(year, subsection, value, metric) |> 
+  mutate(subsection = as.double(subsection))
 
 ## Turnover
 turn_scale <- scale_with_params(turnover_results$total)
@@ -329,8 +326,8 @@ turnover_obs_scaled <- turnover_results |>
     value  = turn_scale$scaled,
     metric = "Turnover"
   ) |>
-  select(year, plot_id, value, metric) |> 
-  mutate(plot_id = as.double(plot_id))
+  select(year, subsection, value, metric) |> 
+  mutate(subsection = as.double(subsection))
 
 observed_all <- bind_rows(richness_obs_scaled,
                           shannon_obs_scaled,
@@ -339,7 +336,7 @@ observed_all <- bind_rows(richness_obs_scaled,
 ### 2. SCALE PREDICTIONS USING THE SAME MIN/MAX PER METRIC
 
 ## Richness preds
-pred_richness <- ggpredict(m_richness, terms = "year") |>
+pred_richness <- ggpredict(m_richness_sub, terms = "year") |>
   as.data.frame() |>
   mutate(
     year  = as.numeric(x),
@@ -445,9 +442,11 @@ ggplot() +
   labs(
     x     = "Year",
     y     = "Scaled value (0–1, within metric)",
-    title = "Relative change in richness, Shannon diversity and turnover over time (pr plot)",
+    title = "",
+    #titel: Relative change in richness, Shannon diversity and turnover over time (pr plot)
     fill  = "Metric",
     color = "Metric"
   ) +
   theme_minimal(base_size = 13) +
-  theme(legend.position = "top")
+  theme(legend.position = "inside", legend.position.inside = c(0.2, 1), legend.direction = "horizontal", legend.title = element_blank())
+
