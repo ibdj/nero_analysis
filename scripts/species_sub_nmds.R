@@ -1,5 +1,7 @@
 #### packages ####
 
+install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+
 library(tidyverse)
 library(viridis)
 library(vegan)
@@ -7,7 +9,7 @@ library(remotes)
 library(pairwiseAdonis)
 library(patchwork)
 
-#### importing data ####
+#### importing data ############################################################
   
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
   filter(veg_type != "saltmarsh", taxon_code != "rock") |> 
@@ -61,7 +63,7 @@ nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
 nmds_scores$sub_year_vt <- rownames(nmds_scores)
 
 
-#### NMDS visualisation ######################################################################## 
+#### NMDS visualisation ########################################################
 
 # Add plot_year_vt as a column to nmds_scores for merging
 nmds_scores$sub_year_vt <- rownames(nmds_scores)
