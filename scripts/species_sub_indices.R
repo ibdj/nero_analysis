@@ -3,6 +3,7 @@
 library(tidyverse)
 library(lme4)
 library(lmerTest)
+library(emmeans)
 library(ggplot2)
 library(ggeffects)
 library(vegan)
@@ -135,6 +136,16 @@ shannon_df <- evenness_species
 
 m_shannon_sub <- lmer(H ~ year + (1 | subsection), data = evenness_species)
 summary(m_shannon_sub)
+
+m_shannon_sub_f <- lmer(
+  H ~ factor(year) + (1 | subsection),
+  data = evenness_species
+)
+
+summary(m_shannon_sub_f)
+
+emmeans(m_shannon_sub_f, ~ year) |>
+  pairs()
 
 #### SHANNON visualisation #########################
 
