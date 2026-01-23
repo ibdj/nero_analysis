@@ -39,6 +39,19 @@ names(richness_sub_df)
 m_richness_sub <- lmer(richness ~ year + (1|subsection), data = richness_sub_df)
 summary(m_richness_sub)
 
+# year as factor and pairwise comparison
+m_richness_sub_f <- lmer(
+  richness ~ factor(year) + (1 | subsection),
+  data = richness_sub_df
+)
+
+summary(m_richness_sub_f)
+
+richness_emmeans <- emmeans(m_richness_sub_f, ~ year) |>
+  pairs()
+
+richness_emmeans
+
 #### richness visualisation ####
 
 # Get model predictions for richhness
@@ -98,6 +111,18 @@ head(evenness_species)
 m_evenness_sub <- lmer(J ~ year + (1|subsection), data = evenness_species)
 summary(m_evenness_sub)
 
+# year as factor and pairwise comparison
+m_evenness_sub_f <- lmer(
+  J ~ factor(year) + (1 | subsection),
+  data = evenness_species
+)
+
+summary(m_evenness_sub_f)
+
+evenness_emmeans <- emmeans(m_evenness_sub_f, ~ year) |>
+  pairs()
+
+evenness_emmeans
 #### evenness visualisation ############################################################
 # Get model predictions (with CI) for evenness
 pred_evenness <- ggeffects::ggpredict(m_evenness_sub, terms = "year")
@@ -137,6 +162,7 @@ shannon_df <- evenness_species
 m_shannon_sub <- lmer(H ~ year + (1 | subsection), data = evenness_species)
 summary(m_shannon_sub)
 
+# year as factor and pairwise comparison
 m_shannon_sub_f <- lmer(
   H ~ factor(year) + (1 | subsection),
   data = evenness_species
@@ -144,8 +170,10 @@ m_shannon_sub_f <- lmer(
 
 summary(m_shannon_sub_f)
 
-emmeans(m_shannon_sub_f, ~ year) |>
+shannon_emmeans <- emmeans(m_shannon_sub_f, ~ year) |>
   pairs()
+
+shannon_emmeans
 
 #### SHANNON visualisation #########################
 
@@ -447,7 +475,7 @@ ggplot() +
       color = metric,
       group = metric
     ),
-    linewidth = 1.1
+    linewidth = 1.1, alpha = 0.3
   ) +
   scale_x_discrete(breaks = c("2007","2012","2017","2022")) +
   labs(
