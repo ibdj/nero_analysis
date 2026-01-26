@@ -34,23 +34,110 @@ richness_sub_df <- species_sub_long |>
 
 names(richness_sub_df)
 
+species_sub_long <- species_sub_long |> 
+  filter(taxon_code != "rock") |> 
+  mutate(abundance = fraction_sub) |> 
+  distinct()
+
+evenness_species <- species_sub_long |> 
+  # compute diversity per plot-year
+  group_by(year, subsection, veg_type) |>
+  summarise(
+    H = diversity(abundance, index = "shannon"),
+    S = n(),                          # number of taxa
+    J = ifelse(S > 1, H / log(S), NA_real_),
+    .groups = "drop"
+  )
+
+head(evenness_species)
+
 #### richness mlm ####
 
 m_richness_sub <- lmer(richness ~ year + (1|subsection), data = richness_sub_df)
 summary(m_richness_sub)
 
 # year as factor and pairwise comparison
-m_richness_sub_f <- lmer(
+model_richness_sub_f <- lmer(
   richness ~ factor(year) + (1 | subsection),
   data = richness_sub_df
 )
 
-summary(m_richness_sub_f)
+summary(model_richness_sub_f)
 
-richness_emmeans <- emmeans(m_richness_sub_f, ~ year) |>
+richness_emmeans_f <- emmeans(model_richness_sub_f, ~ year) 
+
+richness_pairs_f <- emmeans(model_richness_sub_f, ~ year) |> 
   pairs()
 
-richness_emmeans
+richness_emmeans_f
+richness_pairs_f
+
+richness_pairs_df <- as.data.frame(richness_pairs_f)
+#### richness factor visualisation #####
+
+richness_sub_df$year <- factor(richness_sub_df$year)
+
+richness_emmeans_f_df <- as.data.frame(richness_emmeans_f)
+
+# Get emmeans as data frame
+richness_emm_df <- as.data.frame(richness_emmeans_f)
+
+richness_emm_df <- richness_emm_df[order(richness_emm_df$year), ]
+
+# Create segments for consecutive pairs
+segments_df <- richness_emm_df |>
+  slice(1:(n() - 1)) |>
+  mutate(
+    year2 = lead(year),
+    emmean2 = lead(emmean),
+    # Get pairwise p for this adjacent pair
+    pair_contrast = paste(year, "- ", lead(year)),
+    p_adj = richness_pairs_df$p.value[richness_pairs_df$contrast == pair_contrast],
+    sig = ifelse(is.na(p_adj) | p_adj >= 0.05, "ns", "sig"),
+    # Midpoints for line plotting
+    xmid = as.numeric(year) + 0.5,
+    xend = as.numeric(year2) - 0.5,
+    ymid = emmean,
+    yend = emmean2
+  ) |>
+  filter(!is.na(p_adj))
+
+ggplot() +
+  # Raw data
+  geom_jitter(
+    data = richness_sub_df,
+    aes(x = year, y = richness),
+    width = 0.15,
+    alpha = 0.3,
+    color = "black"
+  ) +
+  # Model-based confidence intervals
+  geom_errorbar(
+    data = richness_emm_df,
+    aes(x = year, ymin = lower.CL, ymax = upper.CL),
+    width = 0.25,
+    linewidth = 0.9,
+    color = "darkgreen"
+  ) +
+  # Model-based means
+  geom_point(
+    data = richness_emm_df,
+    aes(x = year, y = emmean),
+    size = 2.8,
+    color = "darkgreen"
+  ) +
+  labs(
+    x = "Year",
+    y = "Species richness"
+  ) +
+  geom_line(
+    data = richness_emm_df,
+    aes(x = year, y = emmean),
+    color = "darkgreen",
+    linewidth = 1
+  ) +
+  theme_classic()
+
 
 #### richness visualisation ####
 
@@ -163,17 +250,19 @@ m_shannon_sub <- lmer(H ~ year + (1 | subsection), data = evenness_species)
 summary(m_shannon_sub)
 
 # year as factor and pairwise comparison
-m_shannon_sub_f <- lmer(
+model_shannon_sub_f <- lmer(
   H ~ factor(year) + (1 | subsection),
   data = evenness_species
 )
 
-summary(m_shannon_sub_f)
+summary(model_shannon_sub_f)
 
-shannon_emmeans <- emmeans(m_shannon_sub_f, ~ year) |>
+shannon_emmeans <- emmeans(model_shannon_sub_f, ~ year) |>
   pairs()
 
 shannon_emmeans
+
+#### SHANNON FACTOR visualisation #########################
 
 #### SHANNON visualisation #########################
 
@@ -242,10 +331,26 @@ turnover_results <- turnover(
 
 head(turnover_results)
 
+#### turnover mlm ##############################################################
 
-#### TURNOVER visualisation ####
-# 2. Fit linear mixed model: turnover by year with random intercept for plot
 m_turnover_sub <- lmer(total ~ year + (1 | subsection), data = turnover_results)
+
+# year as factor and pairwise comparison
+m_turnover_sub_f <- lmer(
+  total ~ factor(year) + (1 | subsection),
+  data = turnover_results
+)
+
+summary(m_turnover_sub_f)
+
+turnover_emmeans <- emmeans(m_turnover_sub_f, ~ year) |>
+  pairs()
+
+turnover_emmeans
+
+#### TURNOVER visualisation ####################################################
+# 2. Fit linear mixed model: turnover by year with random intercept for plot
+
 
 # 3. Generate predicted values at observed years
 pred_turnover <- ggpredict(m_turnover, terms = c("year"))
