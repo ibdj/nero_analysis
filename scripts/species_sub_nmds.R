@@ -1,5 +1,5 @@
 #### packages ####
-
+library(remotes)
 install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 
 library(tidyverse)
@@ -120,11 +120,20 @@ ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = facto
   labs(shape = "Vegetation Type", color = "Year", fill = "Year", title = "NMDS Ordination with Year Centroids") +
   theme(legend.position = "right")
 
-ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = factor(year))) +
-  geom_point(data = centroids, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = factor(year)),
-             shape = 21, size = 5, color = "black") +
+ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, color = factor(year))) +
+  geom_point(
+    data = centroids,
+    aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = factor(year)),
+    shape = 21, size = 5, color = "black", show.legend = FALSE
+  ) +
+  geom_text(
+    data = centroids,
+    aes(x = centroid_NMDS1, y = centroid_NMDS2, label = year),
+    vjust = -1.2, hjust = -0.2, size = 3, color = "black", show.legend = FALSE
+  ) +
   theme_minimal() +
-  labs(shape = "Vegetation Type", color = "Year", fill = "Year", title = "NMDS Ordination with Year Centroids") +
+  labs(shape = "Vegetation Type", title = "NMDS Ordination with Year Centroids") +
+  guides(color = "none", fill = "none") +
   theme(legend.position = "right")
 
 #### NMDS stats BETADISPER ################################################################### 
