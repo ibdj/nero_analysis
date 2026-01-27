@@ -466,17 +466,18 @@ plots <- lapply(years, function(y) {
                shape = 21, size = 5, color = "black") +
     geom_text(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, label = veg_type),
               vjust = -1.2, size = 3, color = "black") +
+    annotate("text", x = -1.5, y = -1, 
+             label = paste(y), 
+             hjust = 0, vjust = 0,
+             size = 4) +
     theme_minimal() +
-    labs(title = paste("NMDS for Year", y)) +
-    #labs(title = paste("NMDS for Year", y),
-    #     shape = "Vegetation Type", color = "Vegetation Type", fill = "Vegetation Type") +
     theme(legend.position = "none")
 })
 
 # Combine plots in a grid
 wrap_plots(plots, ncol = 2)  
 
-#### NMDS year-vegtype mean distance ####
+#### NMDS year-vegtype centriod distance ####
 
 # centroids: year, veg_type, centroid_NMDS1, centroid_NMDS2
 
