@@ -8,6 +8,8 @@ library(ggplot2)
 library(ggeffects)
 library(vegan)
 library(codyn) # turnover calculations
+library(multcomp)
+library(multcompView)
 
 #### loading data ################################
 
@@ -73,6 +75,7 @@ richness_emmeans_f
 richness_pairs_f
 
 richness_pairs_df <- as.data.frame(richness_pairs_f)
+richness_pairs_df
 #### richness factor visualisation #####
 
 richness_sub_df$year <- factor(richness_sub_df$year)
@@ -84,25 +87,12 @@ richness_emm_df <- as.data.frame(richness_emmeans_f)
 
 richness_emm_df <- richness_emm_df[order(richness_emm_df$year), ]
 
-# Create segments for consecutive pairs
-segments_df <- richness_emm_df |>
-  slice(1:(n() - 1)) |>
-  mutate(
-    year2 = lead(year),
-    emmean2 = lead(emmean),
-    # Get pairwise p for this adjacent pair
-    pair_contrast = paste(year, "- ", lead(year)),
-    p_adj = richness_pairs_df$p.value[richness_pairs_df$contrast == pair_contrast],
-    sig = ifelse(is.na(p_adj) | p_adj >= 0.05, "ns", "sig"),
-    # Midpoints for line plotting
-    xmid = as.numeric(year) + 0.5,
-    xend = as.numeric(year2) - 0.5,
-    ymid = emmean,
-    yend = emmean2
-  ) |>
-  filter(!is.na(p_adj))
+years <- c("2007", "2012", "2017", "2022")
 
-ggplot() +
+richness_sub_df$year  <- factor(richness_sub_df$year,  levels = years)
+richness_emm_df$year  <- factor(richness_emm_df$year,  levels = years)
+
+plot_richness <- ggplot() +
   # Raw data
   geom_jitter(
     data = richness_sub_df,
@@ -130,21 +120,23 @@ ggplot() +
     x = "Year",
     y = "Species richness"
   ) +
-  geom_line(
-    data = richness_emm_df,
-    aes(x = year, y = emmean),
-    color = "darkgreen",
-    linewidth = 1
-  ) +
+  #scale_x_discontinuous(breaks = c(2007,2012,2017,2022))+
   theme_classic()
 
+plot_richness
 
 #### richness visualisation ####
 
 # Get model predictions for richhness
+
+years <- c("2007", "2012", "2017", "2022")
+
+richness_sub_df$year  <- factor(richness_sub_df$year,  levels = years)
+richness_emm_df$year  <- factor(richness_emm_df$year,  levels = years)
 pred_richness <- ggeffects::ggpredict(m_richness_sub, terms = "year")
 
 # Plot observed and predicted evenness
+
 ggplot(richness_sub_df, aes(x = year, y = richness)) +
   geom_jitter(aes(group = subsection), width = 0.2, alpha = 0.2, color = "#076834") +
   geom_boxplot(aes(group = factor(year)), outlier.shape = NA, alpha = 0.5, color = "gray30", width = 0.6) +
@@ -163,7 +155,7 @@ ggplot(richness_sub_df, aes(x = year, y = richness)) +
     alpha = 0.2,
     inherit.aes = FALSE
   ) +
-  scale_x_continuous(breaks = c(2007, 2012, 2017, 2022)) +
+  #scale_x_continuous(breaks = c(2007, 2012, 2017, 2022)) +
   labs(
     x = "Year",
     y = "Richness (species pr subsection)",
@@ -210,6 +202,58 @@ evenness_emmeans <- emmeans(m_evenness_sub_f, ~ year) |>
   pairs()
 
 evenness_emmeans
+#### evenness factor visualisation #############################################
+
+evenness_emm <- emmeans(m_evenness_sub_f, ~ year)
+evenness_emm_df <- as.data.frame(evenness_emm)
+
+years <- c("2007", "2012", "2017", "2022")
+
+evenness_species$year <- factor(evenness_species$year, levels = years)
+evenness_emm_df$year  <- factor(evenness_emm_df$year,  levels = years)
+
+evenness_emm_df <- evenness_emm_df[order(evenness_emm_df$year), ]
+
+evenness_cld <- cld(
+  evenness_emm,
+  adjust = "tukey",
+  Letters = letters
+)
+
+
+plot_evenness <- ggplot() +
+  # Raw data
+  geom_jitter(
+    data = evenness_species,
+    aes(x = year, y = J),
+    width = 0.15,
+    alpha = 0.3,
+    color = "black"
+  ) +
+  # Model-based confidence intervals
+  geom_errorbar(
+    data = evenness_emm_df,
+    aes(x = year, ymin = lower.CL, ymax = upper.CL),
+    width = 0.25,
+    linewidth = 0.9,
+    color = "darkblue"
+  ) +
+  # Model-based means
+  geom_point(
+    data = evenness_emm_df,
+    aes(x = year, y = emmean),
+    size = 2.8,
+    color = "darkblue"
+  ) +
+  labs(
+    x = "Year",
+    y = "Pielou's evenness (J)"
+  ) +
+  theme_classic()
+
+plot_evenness
+
+
 #### evenness visualisation ############################################################
 # Get model predictions (with CI) for evenness
 pred_evenness <- ggeffects::ggpredict(m_evenness_sub, terms = "year")
@@ -263,6 +307,57 @@ shannon_emmeans <- emmeans(model_shannon_sub_f, ~ year) |>
 shannon_emmeans
 
 #### SHANNON FACTOR visualisation #########################
+
+# 1. Get emmeans (you have pairs, but need emmeans for plotting)
+shannon_emmeans_only <- emmeans(model_shannon_sub_f, ~ year)
+shannon_emm_df <- as.data.frame(shannon_emmeans_only)
+
+# Make year a factor in your data if not already
+evenness_species$year <- factor(evenness_species$year)
+
+year_levels <- shannon_emm_df$year
+
+# Add numeric x to both data frames
+shannon_emm_df$x_pos <- as.numeric(factor(shannon_emm_df$year))
+evenness_species$x_pos <- as.numeric(factor(evenness_species$year, levels = year_levels))
+
+# 2. Plot
+ggplot() +
+  # Raw data using numeric x
+  geom_jitter(
+    data = evenness_species,
+    aes(x = x_pos, y = H),
+    width = 0.15,
+    alpha = 0.3,
+    color = "black"
+  ) +
+  
+  # Model using numeric x
+  geom_errorbar(
+    data = shannon_emm_df,
+    aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
+    width = 0.25,
+    linewidth = 0.9,
+    color = "darkgreen"
+  ) +
+  geom_point(
+    data = shannon_emm_df,
+    aes(x = x_pos, y = emmean),
+    size = 2.8,
+    color = "darkgreen"
+  ) +
+  
+  # Fix x‑axis labels
+  scale_x_continuous(
+    name = "Year",
+    breaks = 1:length(year_levels),
+    labels = year_levels
+  ) +
+  
+  labs(y = "Shannon diversity (H)") +
+  theme_classic()
+
+
 
 #### SHANNON visualisation #########################
 
