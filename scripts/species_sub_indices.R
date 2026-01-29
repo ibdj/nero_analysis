@@ -10,6 +10,7 @@ library(vegan)
 library(codyn) # turnover calculations
 library(multcomp)
 library(multcompView)
+library(patchwork)
 
 #### loading data ################################
 
@@ -42,7 +43,8 @@ species_sub_long <- species_sub_long |>
   distinct()
 
 evenness_species <- species_sub_long |> 
-  # compute diversity per plot-year
+
+# compute diversity per plot-year
   group_by(year, subsection, veg_type) |>
   summarise(
     H = diversity(abundance, index = "shannon"),
@@ -92,6 +94,13 @@ years <- c("2007", "2012", "2017", "2022")
 richness_sub_df$year  <- factor(richness_sub_df$year,  levels = years)
 richness_emm_df$year  <- factor(richness_emm_df$year,  levels = years)
 
+richness_cld <- cld(
+  richness_emmeans_f,
+  adjust = "sidak",
+  Letters = letters
+)
+richness_cld$year <- factor(richness_cld$year, levels = years)
+
 plot_richness <- ggplot() +
   # Raw data
   geom_jitter(
@@ -121,7 +130,13 @@ plot_richness <- ggplot() +
     y = "Species richness"
   ) +
   #scale_x_discontinuous(breaks = c(2007,2012,2017,2022))+
-  theme_classic()
+  theme_classic()  +
+    geom_text(
+    data = richness_cld,
+    aes(x = year, label = .group),
+    y = 25,  # Tune this
+    size = 4, color = "darkblue"
+  )
 
 plot_richness
 
@@ -220,41 +235,36 @@ evenness_cld <- cld(
   Letters = letters
 )
 
+evenness_cld$year <- factor(evenness_cld$year, 
+                            levels = levels(evenness_emm_df$year))
+
+evenness_cld$year
+evenness_emm_df$year
 
 plot_evenness <- ggplot() +
-  # Raw data
-  geom_jitter(
-    data = evenness_species,
-    aes(x = year, y = J),
-    width = 0.15,
-    alpha = 0.3,
-    color = "black"
+  geom_jitter(data = evenness_species, aes(x = year, y = J), 
+              width = 0.15, alpha = 0.3, color = "black") +
+  geom_errorbar(data = evenness_emm_df, 
+                aes(x = year, ymin = lower.CL, ymax = upper.CL),
+                width = 0.25, linewidth = 0.9, color = "darkblue") +
+  geom_point(data = evenness_emm_df, 
+             aes(x = year, y = emmean), 
+             size = 2.8, color = "darkblue") +
+  # FIXED: aes(x = year, ...) INSIDE geom_text
+  geom_text(
+    data = evenness_cld,
+    aes(x = year, label = .group),
+    y = 1,  # Tune this
+    size = 4, color = "darkblue"
   ) +
-  # Model-based confidence intervals
-  geom_errorbar(
-    data = evenness_emm_df,
-    aes(x = year, ymin = lower.CL, ymax = upper.CL),
-    width = 0.25,
-    linewidth = 0.9,
-    color = "darkblue"
-  ) +
-  # Model-based means
-  geom_point(
-    data = evenness_emm_df,
-    aes(x = year, y = emmean),
-    size = 2.8,
-    color = "darkblue"
-  ) +
-  labs(
-    x = "Year",
-    y = "Pielou's evenness (J)"
-  ) +
+  labs(x = "Year", y = "Pielou's evenness (J)") +
   theme_classic()
 
 plot_evenness
 
 
 #### evenness visualisation ############################################################
+
 # Get model predictions (with CI) for evenness
 pred_evenness <- ggeffects::ggpredict(m_evenness_sub, terms = "year")
 
@@ -317,48 +327,38 @@ evenness_species$year <- factor(evenness_species$year)
 
 year_levels <- shannon_emm_df$year
 
-# Add numeric x to both data frames
-shannon_emm_df$x_pos <- as.numeric(factor(shannon_emm_df$year))
-evenness_species$x_pos <- as.numeric(factor(evenness_species$year, levels = year_levels))
+# STEP 1: Marginal means (4 rows)
+shannon_emmeans_marginals <- emmeans(model_shannon_sub_f, ~ year)
 
-# 2. Plot
-ggplot() +
-  # Raw data using numeric x
-  geom_jitter(
-    data = evenness_species,
-    aes(x = x_pos, y = H),
-    width = 0.15,
-    alpha = 0.3,
-    color = "black"
-  ) +
-  
-  # Model using numeric x
-  geom_errorbar(
-    data = shannon_emm_df,
-    aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
-    width = 0.25,
-    linewidth = 0.9,
-    color = "darkgreen"
-  ) +
-  geom_point(
-    data = shannon_emm_df,
-    aes(x = x_pos, y = emmean),
-    size = 2.8,
-    color = "darkgreen"
-  ) +
-  
-  # Fix x‑axis labels
-  scale_x_continuous(
-    name = "Year",
-    breaks = 1:length(year_levels),
-    labels = year_levels
-  ) +
-  
+# STEP 2: CLD on marginal means (4 rows, with letters)
+shannon_cld <- cld(shannon_emmeans_marginals, adjust = "sidak", Letters = letters)
+
+# STEP 3: Convert marginals to df with x_pos (4 rows)
+shannon_emm_df <- as.data.frame(shannon_emmeans_marginals) |>
+  mutate(x_pos = 1:4) |>
+  arrange(year)
+
+shannon_cld$x_pos <- shannon_emm_df$x_pos
+
+
+plot_shannon <- ggplot() +
+  geom_jitter(data = evenness_species, aes(x = x_pos, y = H), 
+              width = 0.15, alpha = 0.3, color = "black") +
+  geom_errorbar(data = shannon_emm_df, 
+                aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
+                width = 0.25, linewidth = 0.9, color = "darkgreen") +
+  geom_point(data = shannon_emm_df, 
+             aes(x = x_pos, y = emmean), 
+             size = 2.8, color = "darkgreen") +
+  geom_text(data = shannon_cld,
+            aes(x = x_pos, label = .group),
+            y = 3,  # Above max upper.CL
+            size = 4, color = "darkgreen") +
+  scale_x_continuous(name = "Year", breaks = 1:4, labels = c("2007", "2012", "2017", "2022")) +
   labs(y = "Shannon diversity (H)") +
   theme_classic()
 
-
-
+plot_shannon
 #### SHANNON visualisation #########################
 
 # Get model predictions
@@ -689,3 +689,21 @@ ggplot() +
   theme_minimal(base_size = 13) +
   theme(legend.position = "inside", legend.position.inside = c(0.2, 1), legend.direction = "horizontal", legend.title = element_blank())
 
+
+#### combined factor plots #######
+
+library(patchwork)
+
+# 2x2 grid (top row: Shannon + Richness, bottom row: Evenness + empty)
+# WRAP everything in plot_layout()
+( plot_shannon  | plot_richness ) /
+  ( plot_evenness | plot_spacer() ) +
+  
+  plot_layout(
+    guides  = "collect",
+    heights = c(1, 1),
+    widths  = c(1, 1)
+  ) &
+  
+  theme(legend.position = "bottom")
+  
