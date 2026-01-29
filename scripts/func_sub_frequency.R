@@ -112,7 +112,6 @@ ggplot(subsection_agreg_func_type, aes(x = year, y = frec_per_subsec)) +  # remo
 
 #### lmm with year as factor ALL SHRUB ####
 
-
 subsection_func_shrub <- merged_data |>
   group_by(year, subsection, ecoveg_gfc, no_plots) |>
   summarise(frec = n(), .groups = "drop") |>
@@ -136,7 +135,7 @@ shrub_f_emmeans <- emmeans(model_shrub_f, ~ year) |>
 
 shrub_f_emmeans
 
-#### func group visualisation ####
+#### all shrub model visualisation ####
 
 # Plot observed points and predicted trend lines with line type mapped
 ggplot(subsection_func_shrub, aes(x = year, y = frec_per_subsec)) +  # remove color = factor(year)
@@ -162,4 +161,74 @@ ggplot(emm_df, aes(x = year, y = emmean)) +
   scale_x_continuous(breaks = c(2007, 2012, 2017,2022)) +
   theme_classic()
 
+#### all shrub viasualising both the model and original data #####
 
+# Ensure year is treated consistently
+emm_df$year <- factor(emm_df$year)
+subsection_agreg_func_type$year <- factor(subsection_agreg_func_type$year)
+
+ggplot(emm_df, aes(x = year, y = emmean)) +
+  
+  # Raw data FIRST (background layer)
+  geom_jitter(
+    data = subsection_agreg_func_type,
+    aes(x = year, y = frec_per_subsec),
+    width = 0.15,
+    alpha = 0.25,
+    color = "black"
+  ) +
+  
+  # Model estimates (foreground)
+  geom_errorbar(
+    aes(ymin = lower.CL, ymax = upper.CL),
+    width = 0.25,
+    color = "darkgreen",
+    linewidth = 0.8
+  ) +
+  geom_point(
+    size = 2.5,
+    color = "darkgreen"
+  ) +
+  
+  labs(
+    x = "Year",
+    y = "Model-estimated fractional shrub abundance"
+  ) +
+  
+  theme_classic()
+
+
+#### ONLY decidious shrub ######################################################
+
+subsection_func_d_shrub <- merged_data |>
+  group_by(year, subsection, ecoveg_sgfc, no_plots) |>
+  summarise(frec = n(), .groups = "drop") |>
+  mutate(frec_per_subsec = frec / no_plots)|> 
+  filter(ecoveg_sgfc == "shrub_decidous")
+
+data_model_d_shrub <- subsection_func_d_shrub
+
+model_d_shrub_f <- lmer(data = data_model_d_shrub, frec_per_subsec ~ factor(year) + (1 | subsection))
+
+# Extract summaries
+summary(model_d_shrub_f)
+
+d_shrub_f_emmeans <- emmeans(model_d_shrub_f, ~ year) |>
+  pairs()
+
+d_shrub_f_emmeans
+
+
+#### only dicidous shrub visualisation ####
+emm_dshrub <- emmeans(model_d_shrub_f, ~ year)
+emm_df_dshrub <- as.data.frame(emm_dshrub)
+
+ggplot(emm_df_dshrub, aes(x = year, y = emmean)) +
+  geom_point(size = 2, color = "darkgreen") +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.3, color = "darkgreen") +
+  labs(
+    x = "Year",
+    y = "Estimated fractional shrub abundance"
+  ) +
+  scale_x_continuous(breaks = c(2007, 2012, 2017,2022)) +
+  theme_classic()
