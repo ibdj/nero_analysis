@@ -42,10 +42,11 @@ write_rds(species_sub_wide, "data/species_sub_wide.rds")
 
 names(species_sub_wide)
 
-community_matrix <- read_rds("data/species_sub_wide.rds") |> 
-  unite("sub_year_vt", subsection, year,veg_type, sep = "_", remove = FALSE) |> 
+community_matrix <- species_sub_wide |> 
+  unite("sub_year_vt", subsection, year, veg_type, sep = "_", remove = FALSE) |> 
+  as.data.frame() |> 
   column_to_rownames(var = "sub_year_vt") |> 
-  select(-year, -subsection, -veg_type, -no_plots)
+  dplyr::select(-year, -subsection, -veg_type, -no_plots)
 
 #### NMDS ######################################################################
 
@@ -74,7 +75,7 @@ nmds_scores$sub_year_vt <- rownames(nmds_scores)
 
 plot_metadata <- merged_data |>
   mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |>
-  select(sub_year_vt, year, veg_type, subsection) |> 
+  dplyr::select(sub_year_vt, year, veg_type, subsection) |> 
   distinct()
 
 # Merge NMDS site scores with metadata using plot_year_vt as key
@@ -568,7 +569,7 @@ centroid_pairs <-
     ),
     veg_pair = interaction(veg_type1, veg_type2, drop = TRUE)
   ) |>
-  select(year, veg_type1, veg_type2, veg_pair, dist)
+  dplyr::select(year, veg_type1, veg_type2, veg_pair, dist)
 
 # Keep the exploratory summaries (but reframe them)
 centroid_dist_summary <-
