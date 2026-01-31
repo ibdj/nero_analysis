@@ -692,8 +692,6 @@ ggplot() +
 
 #### combined factor plots #######
 
-library(patchwork)
-
 # 2x2 grid (top row: Shannon + Richness, bottom row: Evenness + empty)
 # WRAP everything in plot_layout()
 ( plot_shannon  | plot_richness ) /
