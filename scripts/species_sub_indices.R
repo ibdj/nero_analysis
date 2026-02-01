@@ -12,6 +12,8 @@ library(multcomp)
 library(multcompView)
 library(patchwork)
 
+#to do
+
 #### loading data ################################
 
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
