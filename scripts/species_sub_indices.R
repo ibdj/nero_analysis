@@ -13,6 +13,9 @@ library(multcompView)
 library(patchwork)
 
 #to do
+# finished indicies plot
+# finished report text for all nmds
+
 
 #### loading data ################################
 
