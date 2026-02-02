@@ -15,7 +15,7 @@ library(patchwork)
 #to do
 # finished indicies plot
 # finished report text for all nmds
-
+# get overview of all the plots in the paper
 
 #### loading data ################################
 
