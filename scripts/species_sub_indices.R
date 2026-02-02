@@ -14,6 +14,7 @@ library(patchwork)
 
 #to do
 # finished indicies plot
+## add turnover
 # finished report text for all nmds
 # get overview of all the plots in the paper
 
