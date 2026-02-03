@@ -48,8 +48,6 @@ species_sub_long <- species_sub_long |>
   mutate(abundance = fraction_sub) |> 
   distinct()
 
-evenness_species <- species_sub_long |> 
-
 # compute diversity per plot-year
   group_by(year, subsection, veg_type) |>
   summarise(
@@ -439,8 +437,7 @@ m_turnover_sub <- lmer(total ~ year + (1 | subsection), data = turnover_results)
 # year as factor and pairwise comparison
 m_turnover_sub_f <- lmer(
   total ~ factor(year) + (1 | subsection),
-  data = turnover_results
-)
+  data = turnover_results)
 
 summary(m_turnover_sub_f)
 
@@ -449,7 +446,7 @@ turnover_emmeans <- emmeans(m_turnover_sub_f, ~ year) |>
 
 turnover_emmeans
 
-#### TURNOVER visualisation ####################################################
+#### TURNOVER linear visualisation ####################################################
 # 2. Fit linear mixed model: turnover by year with random intercept for plot
 
 
