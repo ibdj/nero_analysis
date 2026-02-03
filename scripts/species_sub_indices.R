@@ -13,8 +13,6 @@ library(multcompView)
 library(patchwork)
 
 #to do
-# finished indicies plot
-## add turnover
 # finished report text for all nmds
 # get overview of all the plots in the paper
 
@@ -48,7 +46,11 @@ species_sub_long <- species_sub_long |>
   mutate(abundance = fraction_sub) |> 
   distinct()
 
+length(unique(species_sub_long$subsection))
+
 # compute diversity per plot-year
+
+evenness_species <-   species_sub_long |> 
   group_by(year, subsection, veg_type) |>
   summarise(
     H = diversity(abundance, index = "shannon"),
@@ -130,7 +132,7 @@ plot_richness <- ggplot() +
     color = "darkgreen"
   ) +
   labs(
-    x = "Year",
+    x = "",
     y = "Species richness"
   ) +
   #scale_x_discontinuous(breaks = c(2007,2012,2017,2022))+
@@ -140,7 +142,8 @@ plot_richness <- ggplot() +
     aes(x = year, label = .group),
     y = 25,  # Tune this
     size = 4, color = "darkblue"
-  )
+  )+
+  theme_minimal()
 
 plot_richness
 
@@ -261,8 +264,8 @@ plot_evenness <- ggplot() +
     y = 1,  # Tune this
     size = 4, color = "darkblue"
   ) +
-  labs(x = "Year", y = "Pielou's evenness (J)") +
-  theme_classic()
+  labs(x = "", y = "Pielou's evenness (J)") +
+  theme_minimal()
 
 plot_evenness
 
@@ -344,6 +347,10 @@ shannon_emm_df <- as.data.frame(shannon_emmeans_marginals) |>
 
 shannon_cld$x_pos <- shannon_emm_df$x_pos
 
+evenness_species <- evenness_species %>%                     # original tibble
+  mutate(year = factor(year, levels = levels(year)), # ensure same ordering
+         x_pos = as.integer(year)) 
+
 
 plot_shannon <- ggplot() +
   geom_jitter(data = evenness_species, aes(x = x_pos, y = H), 
@@ -358,9 +365,10 @@ plot_shannon <- ggplot() +
             aes(x = x_pos, label = .group),
             y = 3,  # Above max upper.CL
             size = 4, color = "darkgreen") +
-  scale_x_continuous(name = "Year", breaks = 1:4, labels = c("2007", "2012", "2017", "2022")) +
+  scale_x_continuous(name = "", breaks = 1:4, labels = c("2007", "2012", "2017", "2022")) +
+  coord_cartesian(ylim = c(0, NA))  +
   labs(y = "Shannon diversity (H)") +
-  theme_classic()
+  theme_minimal()
 
 plot_shannon
 #### SHANNON visualisation #########################
@@ -449,21 +457,18 @@ turnover_emmeans
 #### TURNOVER factor visualisation #############################################
 
 
-## --------------------------------------------------------------
+
 ## 1️⃣  Fit the model (your original code)
-## --------------------------------------------------------------
 m_turnover_sub_f <- lmer(total ~ factor(year) + (1|subsection),
                          data = turnover_results)
 
-## --------------------------------------------------------------
+
 ## 2️⃣  Define the canonical year factor (four ticks)
-## --------------------------------------------------------------
 all_years <- factor(c("2007","2012","2017","2022"),
                     levels = c("2007","2012","2017","2022"))
 
-## --------------------------------------------------------------
+
 ## 3️⃣  Marginal means for the three intervals that really exist
-## --------------------------------------------------------------
 emm_raw <- emmeans(m_turnover_sub_f, ~ year) %>%          # returns 3 rows
   as.data.frame() %>%
   mutate(year = factor(year, levels = levels(all_years)))   # align factor
@@ -475,9 +480,8 @@ turnover_plot_df <- tibble(year = all_years) %>%          # 4 rows, ordered
   left_join(emm_raw, by = "year") %>%                    # bring in the 3 real rows
   mutate(x_pos = as.integer(year))                       # 1‑4 for the axis
 
-## --------------------------------------------------------------
+
 ## 5️⃣  Compact‑letter‑display (add a dummy row for 2007)
-## --------------------------------------------------------------
 # CLD for the three real means
 cld_three <- cld(emmeans(m_turnover_sub_f, ~ year),
                  adjust = "sidak", Letters = letters) %>%
@@ -498,9 +502,9 @@ turnover_cld <- bind_rows(cld_dummy, cld_three) %>%
 turnover_jitter <- turnover_results %>%
   filter(year %in% c(2012, 2017, 2022))
 
-## --------------------------------------------------------------
+
 ## 6️⃣  Plot – everything comes from the two tidy tables
-## --------------------------------------------------------------
+
 plot_turnover <- ggplot() +
   
   ## raw observations (optional jitter)
@@ -528,7 +532,7 @@ plot_turnover <- ggplot() +
             size = 4, colour = "steelblue") +
   
   ## axis – force the four tick labels
-  scale_x_continuous(name = "Year",
+  scale_x_continuous(name = "",
                      breaks = 1:4,
                      labels = c("2007","2012","2017","2022")) +
   
@@ -800,4 +804,22 @@ ggplot() +
   ) &
   
   theme(legend.position = "bottom")
-  
+
+grid_base <- (plot_shannon  | plot_richness) /
+  (plot_evenness | plot_turnover) +
+  plot_layout(guides = "collect",
+              heights = c(1, 1),
+              widths  = c(1, 1)) &
+  theme(legend.position = "bottom")
+
+## --------------------------------------------------------------
+## 4️⃣  Add subplot labels a)–d)
+## --------------------------------------------------------------
+# `tag_levels = "a"` tells patchwork to start at “a”.
+# `tag_suffix = ")"` gives the familiar “a)”, “b)” … format.
+# `tag_chevron = FALSE` disables the default square brackets.
+# `tag_fontface`, `tag_size`, and `tag_x`/`tag_y` let you fine‑tune placement.
+grid_labeled <- grid_base +
+  plot_annotation(tag_levels = "a",          # a), b), c), d)
+                  tag_suffix = ")")            # point size (adjust to match text)
+grid_labeled
