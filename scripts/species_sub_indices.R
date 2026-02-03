@@ -432,12 +432,12 @@ head(turnover_results)
 
 #### turnover mlm ##############################################################
 
-m_turnover_sub <- lmer(total ~ year + (1 | subsection), data = turnover_results)
+# linear model
+#m_turnover_sub <- lmer(total ~ year + (1 | subsection), data = turnover_results)
 
 # year as factor and pairwise comparison
-m_turnover_sub_f <- lmer(
-  total ~ factor(year) + (1 | subsection),
-  data = turnover_results)
+m_turnover_sub_f <- lmer(total ~ factor(year) + (1|subsection),
+                         data = turnover_results)
 
 summary(m_turnover_sub_f)
 
@@ -445,6 +445,98 @@ turnover_emmeans <- emmeans(m_turnover_sub_f, ~ year) |>
   pairs()
 
 turnover_emmeans
+
+#### TURNOVER factor visualisation #############################################
+
+
+## --------------------------------------------------------------
+## 1️⃣  Fit the model (your original code)
+## --------------------------------------------------------------
+m_turnover_sub_f <- lmer(total ~ factor(year) + (1|subsection),
+                         data = turnover_results)
+
+## --------------------------------------------------------------
+## 2️⃣  Define the canonical year factor (four ticks)
+## --------------------------------------------------------------
+all_years <- factor(c("2007","2012","2017","2022"),
+                    levels = c("2007","2012","2017","2022"))
+
+## --------------------------------------------------------------
+## 3️⃣  Marginal means for the three intervals that really exist
+## --------------------------------------------------------------
+emm_raw <- emmeans(m_turnover_sub_f, ~ year) %>%          # returns 3 rows
+  as.data.frame() %>%
+  mutate(year = factor(year, levels = levels(all_years)))   # align factor
+
+## --------------------------------------------------------------
+## 4️⃣  Build the *plot* data frame – pad the missing 2007 row
+## --------------------------------------------------------------
+turnover_plot_df <- tibble(year = all_years) %>%          # 4 rows, ordered
+  left_join(emm_raw, by = "year") %>%                    # bring in the 3 real rows
+  mutate(x_pos = as.integer(year))                       # 1‑4 for the axis
+
+## --------------------------------------------------------------
+## 5️⃣  Compact‑letter‑display (add a dummy row for 2007)
+## --------------------------------------------------------------
+# CLD for the three real means
+cld_three <- cld(emmeans(m_turnover_sub_f, ~ year),
+                 adjust = "sidak", Letters = letters) %>%
+  as.data.frame() %>%
+  mutate(year = factor(year, levels = levels(all_years)),
+         x_pos = as.integer(year))
+
+# Dummy row for 2007 (no label)
+cld_dummy <- data.frame(year   = factor("2007", levels = levels(all_years)),
+                        .group = "",               # empty string → no letter
+                        x_pos  = 1,
+                        stringsAsFactors = FALSE)
+
+# Combine – now we have four rows, matching turnover_plot_df
+turnover_cld <- bind_rows(cld_dummy, cld_three) %>%
+  arrange(x_pos)
+
+turnover_jitter <- turnover_results %>%
+  filter(year %in% c(2012, 2017, 2022))
+
+## --------------------------------------------------------------
+## 6️⃣  Plot – everything comes from the two tidy tables
+## --------------------------------------------------------------
+plot_turnover <- ggplot() +
+  
+  ## raw observations (optional jitter)
+  geom_jitter(data = turnover_jitter,
+              aes(x = as.integer(factor(year, levels = levels(all_years))),
+                  y = total),
+              width = .15, alpha = .3, colour = "black")+
+  
+  ## 95 % CI error bars (NA rows are ignored automatically)
+  geom_errorbar(data = turnover_plot_df,
+                aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
+                width = .25, linewidth = .9, colour = "steelblue",
+                na.rm = TRUE) +
+  
+  ## marginal‑mean points
+  geom_point(data = turnover_plot_df,
+             aes(x = x_pos, y = emmean),
+             size = 2.8, colour = "steelblue",
+             na.rm = TRUE) +
+  
+  ## significance letters (blank for 2007)
+  geom_text(data = turnover_cld,
+            aes(x = x_pos, label = .group),
+            y = max(turnover_plot_df$upper.CL, na.rm = TRUE) * 2,
+            size = 4, colour = "steelblue") +
+  
+  ## axis – force the four tick labels
+  scale_x_continuous(name = "Year",
+                     breaks = 1:4,
+                     labels = c("2007","2012","2017","2022")) +
+  
+  labs(y = "Turnover (total)") +
+  theme_minimal()
+
+plot_turnover
+
 
 #### TURNOVER linear visualisation ####################################################
 # 2. Fit linear mixed model: turnover by year with random intercept for plot
@@ -488,6 +580,7 @@ ggplot(turnover_results, aes(x = factor(year), y = total)) +
 plot(resid(m_turnover))   
 qqnorm(resid(m_turnover)); qqline(resid(m_turnover))    # Normality
 qqnorm(ranef(m_turnover)$group$`(Intercept)`); qqline(ranef(m_turnover)$group$`(Intercept)`)
+
 
 #### combined plots ####
 
@@ -698,7 +791,7 @@ ggplot() +
 # 2x2 grid (top row: Shannon + Richness, bottom row: Evenness + empty)
 # WRAP everything in plot_layout()
 ( plot_shannon  | plot_richness ) /
-  ( plot_evenness | plot_spacer() ) +
+  ( plot_evenness | plot_turnover ) +
   
   plot_layout(
     guides  = "collect",
