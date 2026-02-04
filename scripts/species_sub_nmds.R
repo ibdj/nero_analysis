@@ -117,7 +117,7 @@ centroids <- nmds_plot_data |>
 # Generate NMDS plot
 ggplot(nmds_plot_data, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = factor(year))) +
   geom_polygon(data = hulls_closed, aes(fill = factor(year), group = factor(year)), alpha = 0.2, color = NA) +
-  geom_path(data = hulls_closed, aes(group = factor(year)), color = "white", size = 0.2) +
+  geom_path(data = hulls_closed, aes(group = factor(year)), color = "white", linewidth = 0.2) +
   geom_point(size = 3, alpha = 0.7) +
   geom_point(data = centroids, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = factor(year)),
              shape = 21, size = 5, color = "black") +
@@ -219,69 +219,183 @@ pairwise_results <- pairwise_adonis(bray_dist, as.factor(metadata_agg$year))
 print(pairwise_results)
 
 
-#### mean distance to centroid (ALL VEG TYPE) ##################################
+#### mean distance to centroid ##################################
 
-# Join centroids back to plot-level NMDS data
-nmds_dist_data <- nmds_plot_data |>
-  left_join(centroids, by = "year") |>
+# this is for all veg types, but calculations have been done with respect to each subsecstions vegetation type
+
+centroids <- nmds_plot_data %>%
+  # 1. Remove unwanted vegetation type
+  filter(veg_type != "saltmarsh") %>%               # <-- change if spelling differs
+  # 2. Group by the two factors that define each centroid
+  group_by(year, veg_type) %>%
+  # 3. Compute the mean of each NMDS axis for the group
+  summarise(
+    cent_NMDS1 = mean(NMDS1, na.rm = TRUE),
+    cent_NMDS2 = mean(NMDS2, na.rm = TRUE),
+    cent_NMDS3 = mean(NMDS3, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Quick peek at the result
+print(centroids)
+
+# 1️⃣  Left‑join so every row keeps its original data
+nmds_with_dist <- nmds_plot_data %>%
+  left_join(centroids, by = c("year", "veg_type"))
+
+# 2️⃣  Verify the join succeeded (optional sanity check)
+if(any(is.na(nmds_with_dist$cent_NMDS1))) {
+  warning("Some rows did not find a matching centroid – check year/veg_type combos.")
+}
+
+# 3️⃣  Euclidean distance in 3‑dimensional NMDS space
+nmds_with_dist <- nmds_with_dist %>%
   mutate(
     dist_to_centroid = sqrt(
-      (NMDS1 - centroid_NMDS1)^2 +
-        (NMDS2 - centroid_NMDS2)^2
+      (NMDS1 - cent_NMDS1)^2 +
+        (NMDS2 - cent_NMDS2)^2 +
+        (NMDS3 - cent_NMDS3)^2
     )
   )
 
-#Quick sanity check
-ggplot(nmds_dist_data, aes(x = year, y = dist_to_centroid)) +
-  geom_boxplot(outlier.alpha = 0.3) +
-  geom_jitter(width = 0.1, alpha = 0.4) +
-  theme_minimal() +
-  labs(
-    x = "Year",
-    y = "Distance to centroid",
-    title = "Within-year dispersion in NMDS space"
+# Quick glimpse of the new column
+head(nmds_with_dist[, c("sub_year_vt", "year", "veg_type",
+                        "dist_to_centroid")])
+
+nmds_with_dist <- nmds_plot_data %>%
+  # Keep every column from nmds_plot_data (the left table)
+  left_join(centroids, by = c("year", "veg_type"))
+
+# checking that all wors have a value
+summary(nmds_with_dist$dist_to_centroid)
+
+n_unique <- n_distinct(paste0(nmds_with_dist$year, "_", nmds_with_dist$veg_type))
+cat("Unique (year × veg_type) combos:", n_unique, "\n")
+n_unique
+
+cat("Unique (year × veg_type) combos:", n_unique, "\n")
+
+nmds_with_dist <- nmds_plot_data %>%
+  left_join(centroids, by = c("year", "veg_type")) %>%   # keep veg_type
+  mutate(
+    dist_to_centroid = sqrt(
+      (NMDS1 - cent_NMDS1)^2 +
+        (NMDS2 - cent_NMDS2)^2 +
+        (NMDS3 - cent_NMDS3)^2
+    )
   )
 
-#Mixed model: year as factor, repeated plots
+# 4️⃣  Summary table: mean ± SD of distance for each (year, veg_type)
+dispersion_summary <- nmds_with_dist %>%
+  group_by(year, veg_type) %>%                # keep the two‑factor structure
+  summarise(
+    n          = n(),
+    mean_dist  = mean(dist_to_centroid, na.rm = TRUE),
+    sd_dist    = sd(dist_to_centroid,   na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(year, veg_type)
 
-m_dispersion <- lmer(
-  dist_to_centroid ~ year + (1 | subsection),
-  data = nmds_dist_data
-)
+# View the table
+print(dispersion_summary)
 
-summary(m_dispersion)
+# Are there any NAs in the distance column?
+sum(is.na(nmds_with_dist$dist_to_centroid))
 
-# pairwise comparicon
+# Does every (year, veg_type) combo have at least one observation?
+nmds_with_dist %>%
+  count(year, veg_type) %>%
+  filter(n == 0)
 
-emm_year_all <- emmeans(m_dispersion, ~ year)
+# ----- baseline model (M1) ---------------------------------
+model_dist_to_centroid <- lmer(dist_to_centroid ~ year + (1 | subsection),
+           data = nmds_with_dist,
+           REML = FALSE)   # ML for model comparison
+summary(model_dist_to_centroid) 
 
-pairs(emm_year_all, adjust = "tukey")
+model_dist_to_centroid2 <- lmer(dist_to_centroid ~ year + (1 | subsection) + (1 | veg_type),
+           data = nmds_with_dist,
+           REML = FALSE)
+summary(model_dist_to_centroid2)
 
-# plotting estimate means
+anova(model_dist_to_centroid, model_dist_to_centroid2)
 
-emm_all_df <- as.data.frame(emm_year_all)
+emm <- emmeans(model_dist_to_centroid, ~ year)
+pairs(emm, adjust = "tukey")
 
-y_max <- max(emm_all_df$emmean + emm_all_df$SE, na.rm = TRUE)
-y_max <- max(emm_all_df$emmean + emm_all_df$SE, na.rm = TRUE) * 1.05
+#### plotting distance to respective centroid #####
+
+## 2.  Get marginal means (EMMs) and their SEs
+emm_year <- emmeans(model_dist_to_centroid, ~ year) %>%   # model object name
+  as.data.frame() %>%                                   # turn into plain df
+  rename(
+    est   = emmean,      # estimated mean distance
+    se    = SE,          # standard error
+    lower = lower.CL,    # lower 95 % CI (optional)
+    upper = upper.CL     # upper 95 % CI (optional)
+  ) %>%
+  mutate(year = factor(year))   # ensure year is treated as categorical
+
+## 3.  Prepare the raw data for plotting
+raw_plot_df <- nmds_with_dist |> 
+  dplyr::select(sub_year_vt, year, dist_to_centroid) |> 
+  mutate(year = factor(year))   # match factor levels used in emm_year
 
 
-ggplot(emm_all_df, aes(x = year, y = emmean, group = 1)) +
-  geom_point(size = 3) +
-  geom_line() +
-  geom_errorbar(
-    aes(ymin = emmean - SE, ymax = emmean + SE),
-    width = 0.1
-  ) +
-  scale_y_continuous(
-    limits = c(0, y_max),
-    expand = expansion(mult = c(0, 0))
-  ) +
-  theme_minimal() +
+## 4.  Build the ggplot
+
+p <- ggplot() +
+  
+  ## 4a. Jittered raw observations (semi‑transparent)
+  geom_jitter(data = raw_plot_df,
+              aes(x = year, y = dist_to_centroid),
+              width = 0.15,               # horizontal jitter amount
+              alpha = 0.35,               # point transparency
+              size  = 1.5,
+              colour = "#555555") +      # neutral grey
+  
+  ## 4b. Model‑estimated means (solid larger points)
+  geom_point(data = emm_year,
+             aes(x = year, y = est),
+             colour = "#D55E00",        # a strong orange for visibility
+             size   = 3) +
+  
+  ## 4c. Error bars (SE)
+  geom_errorbar(data = emm_year,
+                aes(x = year,
+                    ymin = est - se,
+                    ymax = est + se),
+                width = 0.2,
+                colour = "#D55E00",
+                size   = 0.9) +
+  
+  ## 4d. Optional: 95 % CI bars (uncomment if you prefer CIs)
+  # geom_errorbar(data = emm_year,
+  #               aes(x = year,
+  #                   ymin = lower,
+  #                   ymax = upper),
+  #               width = 0.2,
+  #               colour = "#D55E00",
+  #               size   = 0.7,
+  #               linetype = "dashed") +
+  
+  ## 4e. Axis labels, theme, etc.
   labs(
-    x = "Year",
-    y = "Mean distance to centroid",
-    title = "Change in within-year multivariate dispersion over time"
+    x = "",
+    y = "Distance to vegetation-type centroid",
+    title = ""
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 0, vjust = 0.7)
   )
+
+
+## 5.  Print / save the figure
+print(p)                     # display in RStudio / notebook
+ggsave("fig_distance_vs_year.png", p,
+       width = 7, height = 5, dpi = 300)
 
 #### NMDS for each vegetation type #############################################
 
@@ -374,6 +488,21 @@ plots <- lapply(results_list, `[[`, "plot")
 wrap_plots(plots, ncol = 3)
 
 #### testing mean distance within vegtype ####################################
+
+set.seed(42)
+nmds_res   <- metaMDS(community_matrix, k = 3, trymax = 100)
+
+# Pull the site scores (3 axes) and attach the metadata
+nmds_scores <- as.data.frame(scores(nmds_res, display = "sites"))
+nmds_scores$subplot   <- rownames(nmds_scores)          # keep original IDs
+nmds_scores <- dplyr::left_join(nmds_scores, meta,
+                                by = c("subplot" = "subplot_id"))
+
+# Centroids per vegetation type (add `year` if you need a two‑way grouping)
+centroids <- nmds_scores %>%
+  group_by(veg_type) %>%                     # or `group_by(veg_type, year)`
+  summarise(across(starts_with("NMDS"), mean, .names = "cent_{col}"),
+            .groups = "drop")
 
 veg_types <- unique(species_sub_long$veg_type)
 
