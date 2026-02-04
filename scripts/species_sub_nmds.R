@@ -325,6 +325,22 @@ pairs(emm, adjust = "tukey")
 
 #### plotting distance to respective centroid #####
 
+emm_year <- emmeans(model_dist_to_centroid, ~ year)
+
+# Generate the CLD (default uses Tukey letters)
+cld_tbl <- cld(emm_year, Letters = letters, adjust = "sidak") %>%
+  as.data.frame() %>%
+  rename(
+    year = year,
+    est  = emmean,
+    se   = SE,
+    lower = lower.CL,
+    upper = upper.CL,
+    cld  = .group   # column that holds the letters
+  ) %>%
+  mutate(year = factor(year))   # keep factor ordering consistent
+
+
 ## 2.  Get marginal means (EMMs) and their SEs
 emm_year <- emmeans(model_dist_to_centroid, ~ year) %>%   # model object name
   as.data.frame() %>%                                   # turn into plain df
@@ -389,7 +405,14 @@ p <- ggplot() +
   theme(
     plot.title = element_text(face = "bold", hjust = 0.5),
     axis.text.x = element_text(angle = 0, vjust = 0.7)
-  )
+  )+
+  geom_text(data = cld_tbl,
+            aes(x = year,
+                y = 1.25,   # small offset above the CI bar
+                label = cld),
+            colour = "black",
+            vjust = 0,           # align bottom of text with the offset
+            size = 5) 
 
 
 ## 5.  Print / save the figure
