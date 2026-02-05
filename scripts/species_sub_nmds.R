@@ -219,7 +219,7 @@ pairwise_results <- pairwise_adonis(bray_dist, as.factor(metadata_agg$year))
 print(pairwise_results)
 
 
-#### mean distance to centroid ##################################
+#### mean distance to centroid #################################################
 
 # this is for all veg types, but calculations have been done with respect to each subsecstions vegetation type
 
@@ -307,7 +307,7 @@ nmds_with_dist %>%
   count(year, veg_type) %>%
   filter(n == 0)
 
-# ----- baseline model (M1) ---------------------------------
+# baseline model (M1)
 model_dist_to_centroid <- lmer(dist_to_centroid ~ year + (1 | subsection),
            data = nmds_with_dist,
            REML = FALSE)   # ML for model comparison
@@ -703,7 +703,7 @@ plots <- lapply(years, function(y) {
 # Combine plots in a grid
 wrap_plots(plots, ncol = 2)  
 
-#### NMDS year-vegtype centriod distance ####
+#### NMDS year-vegtype centroid distance ####
 
 # centroid distance construction
 centroid_pairs <-
@@ -750,27 +750,57 @@ emm_year <- emmeans(m_convergence, ~ year)
 emm_year
 pairs(emm_year)
 
-plot(emm_year)
-plot(emm_year, horizontal = FALSE)
-
 emm_df <- as.data.frame(emm_year)
+
+emm_df <- as.data.frame(emm_year) %>%
+  mutate(year = factor(year, levels = levels(emm_year@grid$year)),
+         x_pos = as.integer(year))
+
+
+#cld
+centroid_cld <- cld(emm_year,
+                    adjust = "sidak",      # same adjustment you used for pairs()
+                    Letters = letters) %>%
+  as.data.frame() %>%
+  # keep the same ordering as the plot
+  mutate(year = factor(year, levels = levels(emm_year@grid$year)),
+         x_pos = as.integer(year))
 
 #ggplot
 y_max <- max(emm_df$upper.CL, na.rm = TRUE)
 y_max <- y_max * 1.05
 
-ggplot(emm_df, aes(x = factor(year), y = emmean, group = 1)) +
-  #geom_line(color = "grey50") +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(ymin = lower.CL, ymax = upper.CL),
-    width = 0.15
-  ) +
-  coord_cartesian(ylim = c(0, y_max)) +
-  labs(
-    x = "Year",
-    y = "Estimated mean centroid distance"
-  ) +
+ggplot() +
+  
+  ## 4.1  Raw pairwise distances (jittered points)
+  geom_jitter(data = centroid_pairs,
+              aes(x = as.integer(factor(year)), y = dist),
+              width = 0.15, height = 0,
+              alpha = 0.4, colour = "gray30") +
+  
+  ## 4.2  Model‑based means with 95 % CIs
+  geom_errorbar(data = emm_df,
+                aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
+                width = 0.2, colour = "steelblue") +
+  
+  geom_point(data = emm_df,
+             aes(x = x_pos, y = emmean),
+             size = 2.8, colour = "steelblue") +
+  
+  ## 4.3  Significance letters (CLD)
+  geom_text(data = centroid_cld,
+            aes(x = x_pos, label = .group),
+            # place just above the highest CI bar
+            y = 1.45,
+            vjust = 0, size = 4, colour = "steelblue") +
+  
+  ## 4.4  Axis formatting (four years)
+  scale_x_continuous(name = "Year",
+                     breaks = 1:4,
+                     labels = c("2007","2012","2017","2022")) +
+  
+  labs(y = "Estimated mean centroid distance") +
+  
   theme_minimal()
 
 #Diagnostics
