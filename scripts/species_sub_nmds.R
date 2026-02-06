@@ -2,6 +2,9 @@
 library(remotes)
 install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 
+remove.packages("emmeans", lib = .libPaths()[1])   # system library (if present)
+remove.packages("emmeans", lib = .libPaths()[2])   # user library (if present)
+
 library(tidyverse)
 library(viridis)
 library(vegan)
@@ -10,6 +13,7 @@ library(pairwiseAdonis)
 library(patchwork)
 library(lme4)
 library(lmerTest)
+devtools::install_github("rvlenth/emmeans")
 library(emmeans)
 
 
@@ -48,6 +52,11 @@ community_matrix <- species_sub_wide |>
   column_to_rownames(var = "sub_year_vt") |> 
   dplyr::select(-year, -subsection, -veg_type, -no_plots)
 
+meta <- merged_data |>
+  mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |>
+  dplyr::select(sub_year_vt, year, veg_type, subsection) |> 
+  distinct()
+
 #### NMDS ######################################################################
 
 # Set seed for reproducibility
@@ -73,15 +82,10 @@ nmds_scores$sub_year_vt <- rownames(nmds_scores)
 # Add plot_year_vt as a column to nmds_scores for merging
 nmds_scores$sub_year_vt <- rownames(nmds_scores)
 
-plot_metadata <- merged_data |>
-  mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |>
-  dplyr::select(sub_year_vt, year, veg_type, subsection) |> 
-  distinct()
-
 # Merge NMDS site scores with metadata using plot_year_vt as key
 # Convert year to factor (if not already)
 nmds_plot_data <- nmds_scores |>
-  left_join(plot_metadata, by = "sub_year_vt") |>
+  left_join(meta, by = "sub_year_vt") |>
   mutate(year = factor(year))  # convert year to factor for plotting
 
 # Define function to safely compute convex hull
@@ -510,138 +514,200 @@ plots <- lapply(results_list, `[[`, "plot")
 # Wrap them into a grid with 3 columns
 wrap_plots(plots, ncol = 3)
 
-#### testing mean distance within vegtype ####################################
+#### testing mean distance EACH vegtype ####################################
 
-set.seed(42)
-nmds_res   <- metaMDS(community_matrix, k = 3, trymax = 100)
+## 1️⃣  Global NMDS site scores + metadat
 
-# Pull the site scores (3 axes) and attach the metadata
-nmds_scores <- as.data.frame(scores(nmds_res, display = "sites"))
-nmds_scores$subplot   <- rownames(nmds_scores)          # keep original IDs
-nmds_scores <- dplyr::left_join(nmds_scores, meta,
-                                by = c("subplot" = "subplot_id"))
+# 1.1  Pull the three NMDS axes for every plot
+site_scores <- scores(nmds_result, display = "sites") |>
+  as.data.frame() |>
+  tibble::rownames_to_column("sub_year_vt")
 
-# Centroids per vegetation type (add `year` if you need a two‑way grouping)
-centroids <- nmds_scores %>%
-  group_by(veg_type) %>%                     # or `group_by(veg_type, year)`
-  summarise(across(starts_with("NMDS"), mean, .names = "cent_{col}"),
-            .groups = "drop")
+# 1.2  Join the metadata (veg_type, year, etc.)
+site_scores <- site_scores |>
+  left_join(meta, by = "sub_year_vt")
 
-veg_types <- unique(species_sub_long$veg_type)
-
-dist_and_tests <-
-  veg_types |>
-  purrr::map_dfr(\(vt) {
-    cat("Testing vegetation type:", vt, "\n")
-    
-    # 1) Metadata for this veg type
-    plot_metadata_vt <-
-      species_sub_wide |>
-      filter(veg_type == vt) |>
-      mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |>
-      distinct(sub_year_vt, year, veg_type)
-    
-    # 2) Subset community matrix
-    rows_to_keep <- rownames(community_matrix) %in% plot_metadata_vt$sub_year_vt
-    community_matrix_vt <- community_matrix[rows_to_keep, , drop = FALSE]
-    
-    if (nrow(community_matrix_vt) < 3) {
-      return(tibble(
-        veg_type = vt,
-        sub_year_vt = NA_character_,
-        year = NA,
-        dist_to_centroid = NA_real_,
-        p_value = NA_real_,
-        note = "too few samples for NMDS"
-      ))
-    }
-    
-    # 3) NMDS
-    set.seed(42)
-    nmds_result <- metaMDS(community_matrix_vt, k = 3, trymax = 100, trace = FALSE)
-    
-    # 4) Site scores + metadata
-    nmds_scores <-
-      scores(nmds_result, display = "sites") |>
-      as.data.frame() |>
-      tibble::rownames_to_column("sub_year_vt")
-    
-    nmds_plot_data <-
-      nmds_scores |>
-      left_join(plot_metadata_vt, by = "sub_year_vt") |>
-      mutate(year = factor(year))
-    
-    # 5) Centroids per year within this veg type
-    centroids <-
-      nmds_plot_data |>
-      group_by(year, veg_type) |>
-      summarise(
-        centroid_NMDS1 = mean(NMDS1),
-        centroid_NMDS2 = mean(NMDS2),
-        .groups = "drop"
-      )
-    
-    # 6) Distances to centroid
-    nmds_with_centroid <-
-      nmds_plot_data |>
-      left_join(centroids, by = c("year", "veg_type")) |>
-      mutate(
-        dist_to_centroid = sqrt(
-          (NMDS1 - centroid_NMDS1)^2 +
-            (NMDS2 - centroid_NMDS2)^2
-        )
-      )
-    
-    # 7) One value per sub_year_vt for ANOVA
-    dist_summary_vt <-
-      nmds_with_centroid |>
-      distinct(sub_year_vt, year, veg_type, dist_to_centroid)
-    
-    if (n_distinct(dist_summary_vt$year) < 2) {
-      return(
-        dist_summary_vt |>
-          mutate(
-            p_value = NA_real_,
-            note = "only one year present"
-          )
-      )
-    }
-    
-    dist_aov_vt <- aov(dist_to_centroid ~ factor(year), data = dist_summary_vt)
-    p_val <- summary(dist_aov_vt)[[1]]["factor(year)", "Pr(>F)"]
-    
-    dist_summary_vt |>
-      mutate(
-        p_value = p_val,
-        note = NA_character_
-      )
-  })
-
-test_dist_to_centroid_by_veg
-
-#plotting the distances
-all_distances <-
-  purrr::map_dfr(
-    names(results_list),
-    \(vt) {
-      results_list[[vt]]$dist_data |>
-        mutate(veg_type = vt)
-    }
+# 1.3  Keep only the columns we need
+site_scores <- scores(nmds_result, display = "sites") |>
+  as.data.frame() |>
+  tibble::rownames_to_column("sub_year_vt") |>
+  left_join(meta, by = "sub_year_vt") |>
+  dplyr::select(
+    sub_year_vt,
+    veg_type,
+    year,
+    subsection,          # <<< keep this column
+    NMDS1, NMDS2, NMDS3 # keep the three NMDS axes
   )
 
-ggplot(
-  dist_and_tests |> filter(!is.na(dist_to_centroid)),
-  aes(x = factor(year), y = dist_to_centroid)
-) +
-  geom_jitter(width = 0.15, alpha = 0.4, size = 1.5, color = "#076834") +
-  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.1) +
-  facet_wrap(~ veg_type, scales = "free_y") +
-  labs(
-    x = "Year",
-    y = "Distance to centroid",
-    title = "Distances to year centroid within each vegetation type"
-  ) +
-  theme_minimal()
+# 1. Compute global centroids (veg_type × year)
+centroids_all <- site_scores |>
+  dplyr::group_by(veg_type, year) |>
+  dplyr::summarise(
+    cen1 = mean(NMDS1),
+    cen2 = mean(NMDS2),
+    cen3 = mean(NMDS3),
+    .groups = "drop"
+  )
+
+# 2. Join and create the distance column (single operation)
+site_scores <- site_scores |>
+  dplyr::left_join(centroids_all,
+                   by = c("veg_type", "year")) |>
+  dplyr::mutate(
+    dist_to_centroid = sqrt(
+      (NMDS1 - cen1)^2 +
+        (NMDS2 - cen2)^2 +
+        (NMDS3 - cen3)^2
+    )
+  ) |>
+  # <‑‑ make sure it is numeric
+  dplyr::mutate(dist_to_centroid = as.numeric(dist_to_centroid)) |>
+  dplyr::select(-cen1, -cen2, -cen3)
+##  Global y‑axis limits (computed once)
+# Raw distances from the full data set (used for the jitter points)
+global_y_max <- site_scores |>
+  dplyr::summarise(max_dist = max(dist_to_centroid, na.rm = TRUE)) |>
+  dplyr::pull(max_dist)
+
+# Upper bound for the error‑bar + mean point (adds a small cushion)
+global_y_upper <- global_y_max * 1.10   # 10 % headroom for the CLD letters
+global_y_limits <- c(0, global_y_upper)   # lower bound = 0 (distances cannot be negative)
+
+## 2️⃣  Loop over vegetation types
+
+veg_vec   <- unique(site_scores$veg_type)
+plot_list <- vector("list", length(veg_vec))
+mlm_table <- tibble()   # collect fixed‑effect summaries
+
+for (i in seq_along(veg_vec)) {
+  vt <- veg_vec[i]
+  
+  ## ----- Subset data (year stays a factor for the model) -----
+  vt_dat <- site_scores |>
+    dplyr::filter(veg_type == vt) |>
+    dplyr::mutate(year = factor(year))
+  
+  ## ----- Numeric version of the year factor (for annotation) -----
+  year_num <- as.numeric(vt_dat$year)   # 1,2,3,… according to factor levels
+  x_left   <- min(year_num)             # left‑most tick position
+  
+  ## … (centroids, distance, model, EMMeans, CLD, etc.) …
+  
+  ## ----- Build the facet plot ---------------------------------
+  p <- ggplot(vt_dat, aes(x = year, y = dist_to_centroid)) +
+    geom_jitter(width = 0.15, alpha = 0.4, size = 1.2,
+                colour = "black") +
+    
+    geom_errorbar(
+      data = plot_stats,
+      aes(y = mean_dist,
+          ymin = mean_dist - se_dist,
+          ymax = mean_dist + se_dist),
+      width = 0.2, colour = "#076834", size = 0.8
+    ) +
+    
+    geom_point(
+      data = plot_stats,
+      aes(y = mean_dist),
+      colour = "#076834", size = 3
+    ) +
+    
+    ## CLD letters (still inside the shared y‑range)
+    geom_text(
+      data = centroid_cld,
+      aes(x = year, y = global_y_upper * 0.92, label = .group),
+      vjust = 0, size = 4, colour = "#076834"
+    ) +
+    
+    ## Regular external title (vegetation type)
+    labs(
+      title = vt,      # <-- this restores the normal title
+      x = "", y = ""
+    ) +
+    
+    ## Shared y‑axis (no clipping)
+    coord_cartesian(ylim = global_y_limits, clip = "off") +
+    
+    theme_minimal() +
+    
+    ## Plain (non‑bold) title and base text size
+    theme(
+      plot.title = element_text(face = "plain", hjust = 0, vjust = -1),
+      text = element_text(size = 8)
+    )
+  
+  ## ----- Store plot ------------------------------------------------
+  plot_list[[i]] <- p
+  
+  ## ----- Mixed‑effects model (year fixed, subsection random) ----------
+  mod <- lmerTest::lmer(
+    dist_to_centroid ~ year + (1 | subsection),
+    data = vt_dat,
+    REML = FALSE
+  )   # note: we *do not* prefix with lme4:: – we want lmerTest::lmer
+  
+  ## ----- Collect MLM fixed‑effects (broom.mixed) -------------------
+  ## Inside the loop, after you have fitted `mod`
+  # Inside the same loop, right after the model has been fitted
+  fixed_tab <- summary(mod)$coefficients |>
+    as_tibble(rownames = "term") |>
+    dplyr::rename(
+      estimate   = Estimate,
+      std.error  = `Std. Error`,
+      statistic  = `t value`,
+      p.value    = `Pr(>|t|)`
+    ) |>
+    dplyr::mutate(
+      veg_type = vt,          # the current vegetation type
+      effect   = "fixed"      # keep a column analogous to broom.mixed
+    )
+  
+  ## Append to the master table
+  mlm_table <- dplyr::bind_rows(mlm_table, fixed_tab)
+}
+
+## 3️⃣  Assemble final objects
+grid_plot   <- wrap_plots(plot_list, ncol = 2) &
+  theme(plot.margin = margin(5, 5, 5, 5))
+
+mlm_results <- mlm_table |>
+  dplyr::select(
+    veg_type,
+    term,
+    estimate,
+    std.error,
+    statistic,
+    p.value          # keep the original name for now
+  ) |>
+  dplyr::rename(
+    SE      = std.error,
+    t_value = statistic,
+    p_val   = p.value   # <-- give it the underscore name you wanted
+  )
+
+mlm_table <- dplyr::bind_rows(mlm_table, fixed_tab)
+
+mlm_results <- mlm_table |>
+  dplyr::select(
+    veg_type,
+    term,
+    estimate,
+    std.error,
+    statistic,
+    p.value
+  ) |>
+  dplyr::rename(
+    SE      = std.error,
+    t_value = statistic,
+    p_val   = p.value
+  )
+
+mlm_results
+
+# Show the figure
+print(grid_plot)
+
 
 #### NMDS year-vegtype #####
 
