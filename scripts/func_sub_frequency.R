@@ -19,7 +19,7 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
 names(merged_data)
 #### adjust data ###################################################################################################################################
 
-subsection_agreg_func_type <- merged_data |>
+subsection_func_type <- merged_data |>
   group_by(year, subsection, ecoveg_sgfc, no_plots) |>
   summarise(frec = n(), .groups = "drop") |>
   mutate(frec_per_subsec = frec / no_plots)
@@ -27,7 +27,7 @@ subsection_agreg_func_type <- merged_data |>
 #### visualising ####################################################################################################################################
 
 # Recalculate summary statistics based on normalized frequency
-summary_stats <- subsection_agreg_func_type |>
+summary_stats <- subsection_func_type |>
   group_by(year, ecoveg_sgfc) |>
   summarise(
     mean_frec = mean(frec_per_subsec),
@@ -36,7 +36,7 @@ summary_stats <- subsection_agreg_func_type |>
   )
 
 # Plot using normalized frequency per plot
-ggplot(subsection_agreg_func_type, aes(x = frec_per_subsec, color = factor(year))) +
+ggplot(subsection_func_type, aes(x = frec_per_subsec, color = factor(year))) +
   geom_histogram(aes(fill = factor(year)), binwidth = 0.1, position = "dodge", alpha = 0.4) +
   geom_freqpoly(binwidth = 0.1, size = 1) +  # line outline of frequencies
   geom_vline(data = summary_stats, aes(xintercept = mean_frec, color = factor(year)),
@@ -51,7 +51,7 @@ ggplot(subsection_agreg_func_type, aes(x = frec_per_subsec, color = factor(year)
 
 
 #### lmm for fpts #########
-models_by_group <- subsection_agreg_func_type |>
+models_by_group <- subsection_func_type |>
   group_by(ecoveg_sgfc) |>
   group_split() |>
   map(~ lmer(frec_per_subsec ~ year + (1 | subsection), data = .x))
@@ -75,10 +75,10 @@ model_summaries <- map_df(models_by_group, ~ {
 })
 
 # Add functional group names to model summaries (in same order)
-model_summaries$ecoveg_sgfc <- unique(subsection_agreg_func_type$ecoveg_sgfc)
+model_summaries$ecoveg_sgfc <- unique(subsection_func_type$ecoveg_sgfc)
 
 # Prepare prediction  range of years per functional group
-pred_data <- subsection_agreg_func_type |>
+pred_data <- subsection_func_type |>
   group_by(ecoveg_sgfc) |>
   summarise(min_year = min(year), max_year = max(year)) |>
   rowwise() |>
@@ -94,7 +94,7 @@ predictions <- model_summaries |>
   )
 
 # Plot observed points and predicted trend lines with line type mapped
-ggplot(subsection_agreg_func_type, aes(x = year, y = frec_per_subsec)) +  # remove color = factor(year)
+ggplot(subsection_func_type, aes(x = year, y = frec_per_subsec)) +  # remove color = factor(year)
   geom_boxplot(alpha = 0.4, outlier.shape = NA, aes(group = factor(year))) +  # group boxplot by year
   geom_jitter(width = 0.1, alpha = 0.3, color = "black") +  # points in black without color grouping
   geom_line(data = predictions, aes(x = year, y = pred_frec, linetype = line_type), 
@@ -152,11 +152,12 @@ emm <- emmeans(model_shrub_f, ~ year)
 emm_df <- as.data.frame(emm)
 
 ggplot(emm_df, aes(x = year, y = emmean)) +
+  geom_jitter(data = subsection_func_shrub, aes(x = year, y = frec_per_subsec), width = 0.1, alpha = 0.3)+
   geom_point(size = 2, color = "darkgreen") +
   geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.3, color = "darkgreen") +
   labs(
     x = "Year",
-    y = "Estimated fractional shrub abundance"
+    y = "Fractional shrub abundance"
   ) +
   scale_x_continuous(breaks = c(2007, 2012, 2017,2022)) +
   theme_classic()
@@ -165,13 +166,51 @@ ggplot(emm_df, aes(x = year, y = emmean)) +
 
 # Ensure year is treated consistently
 emm_df$year <- factor(emm_df$year)
-subsection_agreg_func_type$year <- factor(subsection_agreg_func_type$year)
+subsection_func_shrub$year <- factor(subsection_func_shrub$year)
 
-ggplot(emm_df, aes(x = year, y = emmean)) +
+
+## 2.  Obtain emmeans and the pairwise comparisons
+shrub_f_emmeans <- emmeans(model_shrub_f, ~ year) |>
+  pairs()  
+
+## 1️⃣  Marginal means for each year (tidy data frame)
+shrub_f_means <- emmeans(model_shrub_f, ~ year) |>
+  # Convert the emmGrid to a regular data frame / tibble
+  as_tibble() |>
+  # The columns already have the correct names:
+  #   year, emmean, SE, df, lower.CL, upper.CL
+  # If you really want to drop unused columns, keep only what you need:
+  dplyr::select(year, emmean, lower.CL, upper.CL) |>
+  # Ensure `year` stays a factor (helps later when we join)
+  mutate(year = factor(year))
+
+# Quick check
+print(shrub_f_means)
+
+## 2️⃣  CLD letters – using the emmGrid (not a tibble)
+cld_tbl <- emmeans(model_shrub_f, ~ year) |>
+  cld(adjust = "sidak",          # same adjustment you used for the pairwise tests
+      Letters = letters) |>
+  as_tibble() |>
+  dplyr::select(year, .group)
+
+## 3️⃣  Join the CLD letters to the means table
+emm_df_cld <- shrub_f_means |>
+  left_join(cld_tbl |> mutate(year = as.factor(year)), by = "year")
+
+# Quick peek – you should see a new column called `.group`
+print(emm_df_cld)
+
+# Quick sanity check
+print(cld_tbl)
+
+y_letter <- max(emm_df_cld$upper.CL, na.rm = TRUE) * 2   # 2 % headroom
+
+ggplot(emm_df_cld, aes(x = year, y = emmean)) +
   
   # Raw data FIRST (background layer)
   geom_jitter(
-    data = subsection_agreg_func_type,
+    data = subsection_func_shrub,
     aes(x = year, y = frec_per_subsec),
     width = 0.15,
     alpha = 0.25,
@@ -192,10 +231,17 @@ ggplot(emm_df, aes(x = year, y = emmean)) +
   
   labs(
     x = "Year",
-    y = "Model-estimated fractional shrub abundance"
+    y = "Estimated fractional shrub abundance"
+  ) +
+  ## (c) **CLD letters**
+  geom_text(
+    aes(label = .group, y = y_letter),   # `.group` holds the letters a‑b‑c …
+    colour = "darkgreen",
+    size = 4,
+    vjust = 0
   ) +
   
-  theme_classic()
+  theme_minimal()
 
 
 #### ONLY decidious shrub ######################################################
