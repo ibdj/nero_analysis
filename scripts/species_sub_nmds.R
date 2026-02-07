@@ -579,22 +579,84 @@ global_y_limits <- c(0, global_y_upper)   # lower bound = 0 (distances cannot be
 veg_vec   <- unique(site_scores$veg_type)
 plot_list <- vector("list", length(veg_vec))
 mlm_table <- tibble()   # collect fixed‑effect summaries
+pairwise_table  <- tibble()   # pairwise year contrasts for all veg types
 
 for (i in seq_along(veg_vec)) {
   vt <- veg_vec[i]
   
-  ## ----- Subset data (year stays a factor for the model) -----
+  ## --------------------------------------------------------------
+  ## 2.1  Subset data (year stays a factor for the model)
+  ## --------------------------------------------------------------
   vt_dat <- site_scores |>
     dplyr::filter(veg_type == vt) |>
     dplyr::mutate(year = factor(year))
   
-  ## ----- Numeric version of the year factor (for annotation) -----
-  year_num <- as.numeric(vt_dat$year)   # 1,2,3,… according to factor levels
-  x_left   <- min(year_num)             # left‑most tick position
+  ## --------------------------------------------------------------
+  ## 2.2  Fit mixed‑effects model (year fixed, subsection random)
+  ## --------------------------------------------------------------
+  mod <- lmerTest::lmer(
+    dist_to_centroid ~ year + (1 | subsection),
+    data = vt_dat,
+    REML = FALSE
+  )
   
-  ## … (centroids, distance, model, EMMeans, CLD, etc.) …
+  ## --------------------------------------------------------------
+  ## 2.3  EMMeans (needed for both CLD and pairwise contrasts)
+  ## --------------------------------------------------------------
+  emm <- emmeans::emmeans(mod, ~ year)
   
-  ## ----- Build the facet plot ---------------------------------
+  ## --------------------------------------------------------------
+  ## 2.4  CLD letters (Sidak‑adjusted) – for the plot
+  ## --------------------------------------------------------------
+  cld_df <- multcomp::cld(
+    emm,
+    adjust = "sidak",
+    Letters = letters,
+    sort = FALSE
+  ) |> as_tibble() |> dplyr::select(year, .group)
+  
+  ## --------------------------------------------------------------
+  ## 2.5  Pairwise year contrasts (the numbers behind the CLD)
+  ## --------------------------------------------------------------
+  pairwise_cmp <- emmeans::contrast(
+    emm,
+    method = "pairwise",
+    adjust = "sidak"
+  ) |> as_tibble() |> dplyr::rename(
+    contrast = contrast,
+    estimate = estimate,
+    SE       = SE,
+    df       = df,
+    t_ratio  = t.ratio,
+    p_adj    = p.value
+  ) |> dplyr::mutate(veg_type = vt)
+  
+  ## --------------------------------------------------------------
+  ## 2.6  Append pairwise results to the master table
+  ## --------------------------------------------------------------
+  pairwise_table <- dplyr::bind_rows(pairwise_table, pairwise_cmp)
+  
+  ## --------------------------------------------------------------
+  ## 2.7  Plot‑ready summary (mean ± SE) + attach CLD letters
+  ## --------------------------------------------------------------
+  plot_stats <- vt_dat |>
+    dplyr::group_by(year) |>
+    dplyr::summarise(
+      mean_dist = mean(dist_to_centroid),
+      se_dist   = sd(dist_to_centroid) / sqrt(n()),
+      .groups = "drop"
+    ) |>
+    dplyr::left_join(cld_df, by = "year")
+  
+  centroid_cld <- plot_stats |>
+    dplyr::mutate(
+      y_pos = global_y_upper * 0.92   # fixed vertical position inside panel
+    ) |>
+    dplyr::select(year, .group, y_pos)
+  
+  ## --------------------------------------------------------------
+  ## 2.8  Build the facet plot (all visual settings unchanged)
+  ## --------------------------------------------------------------
   p <- ggplot(vt_dat, aes(x = year, y = dist_to_centroid)) +
     geom_jitter(width = 0.15, alpha = 0.4, size = 1.2,
                 colour = "black") +
@@ -613,43 +675,34 @@ for (i in seq_along(veg_vec)) {
       colour = "#076834", size = 3
     ) +
     
-    ## CLD letters (still inside the shared y‑range)
     geom_text(
       data = centroid_cld,
-      aes(x = year, y = global_y_upper * 0.92, label = .group),
+      aes(x = year, y = y_pos, label = .group),
       vjust = 0, size = 4, colour = "#076834"
     ) +
     
-    ## Regular external title (vegetation type)
     labs(
-      title = vt,      # <-- this restores the normal title
+      title = vt,      # plain external title
       x = "", y = ""
     ) +
     
-    ## Shared y‑axis (no clipping)
     coord_cartesian(ylim = global_y_limits, clip = "off") +
     
     theme_minimal() +
     
-    ## Plain (non‑bold) title and base text size
     theme(
-      plot.title = element_text(face = "plain", hjust = 0, vjust = -1),
+      plot.title = element_text(face = "plain", hjust = 0.5),
       text = element_text(size = 8)
     )
   
-  ## ----- Store plot ------------------------------------------------
+  ## --------------------------------------------------------------
+  ## 2.9  Store the plot
+  ## --------------------------------------------------------------
   plot_list[[i]] <- p
   
-  ## ----- Mixed‑effects model (year fixed, subsection random) ----------
-  mod <- lmerTest::lmer(
-    dist_to_centroid ~ year + (1 | subsection),
-    data = vt_dat,
-    REML = FALSE
-  )   # note: we *do not* prefix with lme4:: – we want lmerTest::lmer
-  
-  ## ----- Collect MLM fixed‑effects (broom.mixed) -------------------
-  ## Inside the loop, after you have fitted `mod`
-  # Inside the same loop, right after the model has been fitted
+  ## --------------------------------------------------------------
+  ## 2.10  Extract fixed‑effect summary (includes p‑values)
+  ## --------------------------------------------------------------
   fixed_tab <- summary(mod)$coefficients |>
     as_tibble(rownames = "term") |>
     dplyr::rename(
@@ -659,35 +712,28 @@ for (i in seq_along(veg_vec)) {
       p.value    = `Pr(>|t|)`
     ) |>
     dplyr::mutate(
-      veg_type = vt,          # the current vegetation type
-      effect   = "fixed"      # keep a column analogous to broom.mixed
+      veg_type = vt,
+      effect   = "fixed"
     )
   
-  ## Append to the master table
+  ## --------------------------------------------------------------
+  ## 2.11  Append to the master MLM table
+  ## --------------------------------------------------------------
   mlm_table <- dplyr::bind_rows(mlm_table, fixed_tab)
 }
 
-## 3️⃣  Assemble final objects
-grid_plot   <- wrap_plots(plot_list, ncol = 2) &
+# Show the figure
+print(grid_plot)
+
+## --------------------------------------------------------------
+## 3.1  Combined figure
+## --------------------------------------------------------------
+grid_plot <- wrap_plots(plot_list, ncol = 2) &
   theme(plot.margin = margin(5, 5, 5, 5))
 
-mlm_results <- mlm_table |>
-  dplyr::select(
-    veg_type,
-    term,
-    estimate,
-    std.error,
-    statistic,
-    p.value          # keep the original name for now
-  ) |>
-  dplyr::rename(
-    SE      = std.error,
-    t_value = statistic,
-    p_val   = p.value   # <-- give it the underscore name you wanted
-  )
-
-mlm_table <- dplyr::bind_rows(mlm_table, fixed_tab)
-
+## --------------------------------------------------------------
+## 3.2  MLM results table (six columns you asked for)
+## --------------------------------------------------------------
 mlm_results <- mlm_table |>
   dplyr::select(
     veg_type,
@@ -703,11 +749,28 @@ mlm_results <- mlm_table |>
     p_val   = p.value
   )
 
-mlm_results
+## --------------------------------------------------------------
+## 3.3  Pairwise year‑wise contrast table (supplemental)
+## --------------------------------------------------------------
+pairwise_results <- pairwise_table |>
+  dplyr::select(
+    veg_type,
+    contrast,
+    estimate,ß
+    SE,
+    df,
+    t_ratio,
+    p_adj
+  ) |>
+  dplyr::arrange(veg_type, contrast) |>
+  dplyr::mutate(
+    estimate = round(estimate, 4),
+    SE       = round(SE, 4),
+    t_ratio  = round(t_ratio, 2),
+    p_adj    = signif(p_adj, 3)   # scientific notation for tiny p‑values
+  )
 
-# Show the figure
-print(grid_plot)
-
+view(pairwise_table)
 
 #### NMDS year-vegtype #####
 
