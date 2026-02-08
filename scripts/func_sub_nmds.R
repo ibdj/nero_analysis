@@ -28,11 +28,11 @@ species_sub_long <- merged_data |>
   filter(veg_type != "saltmarsh", no_plots != 1) |> 
   distinct(year, subsection, veg_type, ecoveg_sgfc, taxon_code, no_plots, fraction_sub)
 
-unique(func_sub_frac_sum$ecoveg_sgfc)
-
 func_sub_frac_sum <- species_sub_long |> 
   group_by(year, subsection, veg_type, ecoveg_sgfc) |> 
   reframe(frac_sum = sum(fraction_sub))
+
+unique(func_sub_frac_sum$ecoveg_sgfc)
 
 func_sub_wide <- func_sub_frac_sum |> 
   pivot_wider(names_from = ecoveg_sgfc, values_from = frac_sum, values_fill = 0) |> 
@@ -41,7 +41,7 @@ func_sub_wide <- func_sub_frac_sum |>
 community_matrix <- func_sub_wide |> 
   unite("sub_year_vt", subsection, year,veg_type, sep = "_", remove = FALSE) |> 
   column_to_rownames(var = "sub_year_vt") |> 
-  select(-year, -subsection, -veg_type)
+  dplyr::select(-year, -subsection, -veg_type)
 
 #### shrub fraction stats ####
 
@@ -158,7 +158,7 @@ nmds_scores$sub_year_vt <- rownames(nmds_scores)
 
 plot_metadata <- merged_data |>
   mutate(sub_year_vt = paste(subsection, year, veg_type, sep = "_")) |>
-  select(sub_year_vt, year, veg_type) |> 
+  dplyr::select(sub_year_vt, year, veg_type) |> 
   distinct()
 
 # Merge NMDS site scores with metadata using plot_year_vt as key
