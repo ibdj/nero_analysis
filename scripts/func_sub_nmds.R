@@ -9,6 +9,7 @@ library(lme4)
 library(lmerTest)
 library(ggeffects)
 library(patchwork)
+library(cld)
 
 #### importing data ####
 
@@ -502,9 +503,9 @@ plots <- lapply(years, function(y) {
     geom_text(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, label = veg_type),
               vjust = -1.2, size = 3, color = "black") +
     theme_minimal() +
-    labs(title = paste("NMDS for Year", y),
+    labs(title = paste(y),
          shape = "Vegetation Type", color = "Vegetation Type", fill = "Vegetation Type") +
-    theme(legend.position = "right")
+    theme(legend.position = "")
 })
 
 # Combine plots in a grid
