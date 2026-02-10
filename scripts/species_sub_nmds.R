@@ -2,9 +2,6 @@
 library(remotes)
 install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 
-remove.packages("emmeans", lib = .libPaths()[1])   # system library (if present)
-remove.packages("emmeans", lib = .libPaths()[2])   # user library (if present)
-
 library(tidyverse)
 library(viridis)
 library(vegan)
@@ -725,15 +722,13 @@ for (i in seq_along(veg_vec)) {
 # Show the figure
 print(grid_plot)
 
-## --------------------------------------------------------------
 ## 3.1  Combined figure
-## --------------------------------------------------------------
 grid_plot <- wrap_plots(plot_list, ncol = 2) &
   theme(plot.margin = margin(5, 5, 5, 5))
 
-## --------------------------------------------------------------
+
 ## 3.2  MLM results table (six columns you asked for)
-## --------------------------------------------------------------
+
 mlm_results <- mlm_table |>
   dplyr::select(
     veg_type,
@@ -749,14 +744,14 @@ mlm_results <- mlm_table |>
     p_val   = p.value
   )
 
-## --------------------------------------------------------------
+
 ## 3.3  Pairwise year‑wise contrast table (supplemental)
-## --------------------------------------------------------------
+
 pairwise_results <- pairwise_table |>
   dplyr::select(
     veg_type,
     contrast,
-    estimate,ß
+    estimate,
     SE,
     df,
     t_ratio,
