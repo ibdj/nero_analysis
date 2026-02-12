@@ -12,9 +12,6 @@ library(multcomp)
 library(multcompView)
 library(patchwork)
 
-#to do
-# finished report text for all nmds
-# get overview of all the plots in the paper
 
 #### loading data ################################
 
@@ -473,9 +470,9 @@ emm_raw <- emmeans(m_turnover_sub_f, ~ year) %>%          # returns 3 rows
   as.data.frame() %>%
   mutate(year = factor(year, levels = levels(all_years)))   # align factor
 
-## --------------------------------------------------------------
+
 ## 4️⃣  Build the *plot* data frame – pad the missing 2007 row
-## --------------------------------------------------------------
+
 turnover_plot_df <- tibble(year = all_years) %>%          # 4 rows, ordered
   left_join(emm_raw, by = "year") %>%                    # bring in the 3 real rows
   mutate(x_pos = as.integer(year))                       # 1‑4 for the axis
@@ -544,7 +541,6 @@ plot_turnover
 
 #### TURNOVER linear visualisation ####################################################
 # 2. Fit linear mixed model: turnover by year with random intercept for plot
-
 
 # 3. Generate predicted values at observed years
 pred_turnover <- ggpredict(m_turnover, terms = c("year"))
@@ -812,9 +808,9 @@ grid_base <- (plot_shannon  | plot_richness) /
               widths  = c(1, 1)) &
   theme(legend.position = "bottom")
 
-## --------------------------------------------------------------
+
 ## 4️⃣  Add subplot labels a)–d)
-## --------------------------------------------------------------
+
 # `tag_levels = "a"` tells patchwork to start at “a”.
 # `tag_suffix = ")"` gives the familiar “a)”, “b)” … format.
 # `tag_chevron = FALSE` disables the default square brackets.
