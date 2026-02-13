@@ -819,3 +819,12 @@ grid_labeled <- grid_base +
   plot_annotation(tag_levels = "a",          # a), b), c), d)
                   tag_suffix = ")")            # point size (adjust to match text)
 grid_labeled
+
+#### specific species ####
+
+species_sub_salix <- species_sub_long |> 
+  filter(taxon_code == "salgla")
+
+str(species_sub_salix
+    )
+
