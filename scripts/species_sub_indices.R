@@ -20,9 +20,19 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
   mutate(no_plots = n_distinct(plot_id)) |> 
   ungroup()
 
+merged_data <- merged_data |>  
+  dplyr::select(year, subsection,plot_id, veg_type,no_plots,taxon_code,func_type,ecoveg_gfc, ecoveg_sgfc) |>
+  distinct(year, subsection,plot_id, veg_type,no_plots,taxon_code,func_type,ecoveg_gfc, ecoveg_sgfc)
+
 species_sub_long <- merged_data |>
   group_by(year, subsection, veg_type, taxon_code, no_plots) |>
-  summarize(
+  reframe(
+    count = n()
+  )
+
+species_sub_long <- merged_data |>
+  group_by(year, subsection, veg_type, taxon_code, no_plots) |>
+  reframe(
     count = n(),
     fraction_sub = as.double(count) / as.double(no_plots),
     .groups = "drop"
@@ -820,11 +830,5 @@ grid_labeled <- grid_base +
                   tag_suffix = ")")            # point size (adjust to match text)
 grid_labeled
 
-#### specific species ####
 
-species_sub_salix <- species_sub_long |> 
-  filter(taxon_code == "salgla")
-
-str(species_sub_salix
-    )
 
