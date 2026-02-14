@@ -37,14 +37,11 @@ species_sub <- species_long |>
   group_by(year,subsection,no_plots,veg_type, taxon_code) |> 
   summarise(count = sum(occurrence)) |> 
   mutate(fraction = count/no_plots)
-  
-
-species_sub_salgla <- species_sub |> 
-  filter(taxon_code == "salgla")
-
 
 #### salix model frequency of occurrence ####
 
+species_sub_salgla <- species_sub |> 
+  filter(taxon_code == "salgla")
 
 # Fit the model
 mod_abund_sal <- lmer(
@@ -57,11 +54,11 @@ mod_abund_sal <- lmer(
 mod_abund_sal
 
 # Assuming your model object is called `mod_abund`
-pairwise_years <- mod_abund_sal |>
+pairwise_years_salgla <- mod_abund_sal |>
   emmeans(~ factor(year)) |>
   pairs(adjust = "holm")   # Holm correction for multiple testing
 
-pairwise_years
+pairwise_years_salgla
 
 #### salix plot frequency of occurrence ####
 year_emm_sal <- mod_abund_sal |>
