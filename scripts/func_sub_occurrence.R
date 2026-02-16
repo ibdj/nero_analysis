@@ -37,4 +37,11 @@ species_long <- pivot_wide |>
 species_sub <- species_long |> 
   group_by(year,subsection,no_plots,veg_type, taxon_code) |> 
   summarise(count = sum(occurrence)) |> 
-  mutate(fraction = count/no_plots)
+  mutate(fraction = count/no_plots) |> 
+  left_join(meta, by = "taxon_code")
+
+names(species_sub)
+
+func_summed_allshrub <- species_sub |> 
+  group_by(year,subsection, veg_type, fraction, func_type) |> 
+  reframe(sum_frac = sum(fraction))
