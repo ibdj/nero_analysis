@@ -1,5 +1,5 @@
 
-#### loading packages ####
+#### loading packages ##########################################################
 
 library(tidyverse)
 library(lme4)
@@ -14,7 +14,7 @@ library(multcompView)
 library(patchwork)
 library(cld)
 
-#### importing data ####
+#### importing data ############################################################
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
   group_by(year, subsection) |> 
   mutate(no_plots = n_distinct(plot_id)) |> 
@@ -91,7 +91,7 @@ cld_labels_allshrub <- cld_years_allshrub |>
 
 # 2️⃣  Join the letters to the emmeans data frame
 year_emm_lab_allshrub <- year_emm_allshrub |>
-  dplyr::left_join(cld_labels, by = "year")
+  dplyr::left_join(cld_labels_allshrub, by = "year")
 
 p <- ggplot(data = func_summed_allshrub,
             aes(x = factor(year), y = sum_frac)) +
@@ -306,6 +306,25 @@ p <- ggplot(data = func_summed_evergreen,
 
 print(p)
 
+#### model gramminoids #########################################################
+func_summed_gramminoids <- species_sub |> 
+  group_by(year,subsection, veg_type, fraction, func_type) |> 
+  reframe(sum_frac = sum(fraction)) |> 
+  filter(func_type == "graminoid")
+
+model_sum_frac_gramminoids <- lmer(
+  sum_frac ~ factor(year) + (1 | subsection),
+  data = func_summed_gramminoids
+)
+
+summary(model_sum_frac_gramminoids)
+
+# Assuming your model object is called `mod_abund`
+pairwise_sum_frac_gramminoids <- model_sum_frac_gramminoids |>
+  emmeans(~ factor(year)) |>
+  pairs(adjust = "holm")   # Holm correction for multiple testing for 6 tests
+
+pairwise_sum_frac_gramminoids
 #### combined plit#####
 
 # Combine the raw‑point data
@@ -366,7 +385,7 @@ str(raw_long)
 p
 
 p <- p +
-  # ----- model‑based means (larger points) -----
+
 geom_point(
   data = emm_long,
   aes(x = factor(year), y = emmean, colour = func_group),
@@ -374,7 +393,7 @@ geom_point(
   shape = 19,
   inherit.aes = FALSE          # <-- do NOT pull in y = sum_frac
 ) +
-  # ----- confidence‑interval error bars -----
+
 geom_errorbar(
   data = emm_long,
   aes(
