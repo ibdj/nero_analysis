@@ -121,7 +121,17 @@ p <- ggplot(data = species_sub_salgla,
             vjust = 0,
             colour = "red",
             size = 5) +
-  theme_minimal()
+  theme_minimal() +
+  annotate(
+    "text",
+    x = -Inf,          # left edge of the panel (outside the factor range)
+    y = Inf,           # top edge of the panel
+    label = "Salix glauca",
+    hjust = -0.1,      # nudge a bit right of the border
+    vjust = 1.1,       # nudge a bit below the top border
+    colour = "black",
+    size = 3
+  )
 
 print(p)
 
@@ -209,7 +219,17 @@ p <- ggplot(data = species_sub_betnan,
             vjust = 0,
             colour = "red",
             size = 5) +
-  theme_minimal()
+  theme_minimal()+
+  annotate(
+    "text",
+    x = -Inf,          # left edge of the panel (outside the factor range)
+    y = Inf,           # top edge of the panel
+    label = "Betula nana",
+    hjust = -0.1,      # nudge a bit right of the border
+    vjust = 1.1,       # nudge a bit below the top border
+    colour = "black",
+    size = 3
+  )
 
 print(p)
 
@@ -293,12 +313,22 @@ p <- ggplot(data = species_sub_empnig,
   # **Add the CLD letters**
   geom_text(data = year_emm_lab_empnig,
             aes(x = factor(year),
-                y = 0.75,   # a little above the CI bar
+                y = 0.9,   # a little above the CI bar
                 label = .group),
             vjust = 0,
             colour = "red",
             size = 5) +
-  theme_minimal()
+  theme_minimal()+
+  annotate(
+    "text",
+    x = -Inf,          # left edge of the panel (outside the factor range)
+    y = Inf,           # top edge of the panel
+    label = "Empetrum nigrum",
+    hjust = -0.1,      # nudge a bit right of the border
+    vjust = 1.1,       # nudge a bit below the top border
+    colour = "black",
+    size = 3
+  )
 
 print(p)
 
