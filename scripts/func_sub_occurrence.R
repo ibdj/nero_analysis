@@ -538,3 +538,29 @@ p <- p +
     inherit.aes = FALSE          # crucial – don’t inherit y = sum_frac
   )
 p
+
+#### combined stats ###########
+
+graminoid_df <- pairwise_sum_frac_graminoid |>
+  as.data.frame()
+
+deciduous_df <- pairwise_sum_frac_deciduous |>
+  as.data.frame()
+
+evergreen_df <- pairwise_sum_frac_evergreen |>
+  as.data.frame()
+
+all_pairwise_df <- list(
+  graminoid  = pairwise_sum_frac_graminoid,
+  deciduous  = pairwise_sum_frac_deciduous,
+  evergreen  = pairwise_sum_frac_evergreen,
+  allshrub   = pairwise_sum_frac_allshrub
+) |>
+  purrr::imap_dfr(
+    \(x, name) {
+      x |>
+        as.data.frame() |>
+        dplyr::mutate(vegetation = name)
+    }
+  )
+all_pairwise_df
