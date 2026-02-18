@@ -1,4 +1,4 @@
-#### packages ########################################################################################################################
+#### packages ##################################################################
 
 library(tidyverse)
 library(ggplot2)
@@ -17,14 +17,14 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
   filter(taxon_code != "rock")
 
 names(merged_data)
-#### adjust data ###################################################################################################################################
+#### adjust data ###############################################################
 
 subsection_func_type <- merged_data |>
   group_by(year, subsection, ecoveg_sgfc, no_plots) |>
   summarise(frec = n(), .groups = "drop") |>
   mutate(frec_per_subsec = frec / no_plots)
 
-#### visualising ####################################################################################################################################
+#### visualising ###############################################################
 
 # Recalculate summary statistics based on normalized frequency
 summary_stats <- subsection_func_type |>
