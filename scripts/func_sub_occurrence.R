@@ -86,7 +86,7 @@ cld_years_allshrub <- emm_years_allshrub |>
 cld_years_allshrub
 
 # 1️⃣  Keep only the columns we need from the CLD output
-cld_labels_allshrub <- cld_years_allshrub |>
+ cld_labels_allshrub <- cld_years_allshrub |>
   dplyr::select(year, .group)
 
 # 2️⃣  Join the letters to the emmeans data frame
@@ -118,7 +118,7 @@ p <- ggplot(data = func_summed_allshrub,
                 inherit.aes = FALSE) +   # <‑ prevent inheritance of y = abundance
   
   labs(x = "Year",
-       y = "Frequency of occurrence") +
+       y = "Summed frequency of occurrence") +
   # **Add the CLD letters**
   geom_text(data = year_emm_lab_allshrub,
             aes(x = factor(year),
@@ -127,10 +127,19 @@ p <- ggplot(data = func_summed_allshrub,
             vjust = 0,
             colour = "darkgreen",
             size = 5) +
-  theme_minimal()
+  theme_minimal()+
+  annotate(
+    "text",
+    x = -Inf,          # left edge of the panel (outside the factor range)
+    y = Inf,           # top edge of the panel
+    label = "All shrub",
+    hjust = -0.1,      # nudge a bit right of the border
+    vjust = 1.1,       # nudge a bit below the top border
+    colour = "black",
+    size = 3
+  )
 
 print(p)
-
 
 #### model deciduous ####
 
@@ -179,7 +188,7 @@ cld_labels_deciduous <- cld_years_deciduous |>
 
 # 2️⃣  Join the letters to the emmeans data frame
 year_emm_lab_deciduous <- year_emm_deciduous |>
-  dplyr::left_join(cld_labels, by = "year")
+  dplyr::left_join(cld_labels_deciduous, by = "year")
 
 p <- ggplot(data = func_summed_deciduous,
             aes(x = factor(year), y = sum_frac)) +
@@ -215,7 +224,17 @@ p <- ggplot(data = func_summed_deciduous,
             vjust = 0,
             colour = "darkgreen",
             size = 5) +
-  theme_minimal()
+  theme_minimal()+
+  annotate(
+    "text",
+    x = -Inf,          # left edge of the panel (outside the factor range)
+    y = Inf,           # top edge of the panel
+    label = "Deciduous",
+    hjust = -0.1,      # nudge a bit right of the border
+    vjust = 1.1,       # nudge a bit below the top border
+    colour = "black",
+    size = 3
+  )
 
 print(p)
 
@@ -302,22 +321,118 @@ p <- ggplot(data = func_summed_evergreen,
             vjust = 0,
             colour = "darkred",
             size = 5) +
-  theme_minimal()
+  theme_minimal() +
+  annotate(
+    "text",
+    x = -Inf,          # left edge of the panel (outside the factor range)
+    y = Inf,           # top edge of the panel
+    label = "Evergreen",
+    hjust = -0.1,      # nudge a bit right of the border
+    vjust = 1.1,       # nudge a bit below the top border
+    colour = "black",
+    size = 3
+  )
+
 
 print(p)
 
-#### model gramminoids #########################################################
-func_summed_gramminoids <- species_sub |> 
+#### model graminoids #########################################################
+func_summed_graminoid <- species_sub |> 
   group_by(year,subsection, veg_type, fraction, func_type) |> 
   reframe(sum_frac = sum(fraction)) |> 
   filter(func_type == "graminoid")
 
-model_sum_frac_gramminoids <- lmer(
+model_sum_frac_graminoid <- lmer(
   sum_frac ~ factor(year) + (1 | subsection),
   data = func_summed_gramminoids
 )
 
-summary(model_sum_frac_gramminoids)
+summary(model_sum_frac_graminoid)
+
+
+# Assuming your model object is called `mod_abund`
+pairwise_sum_frac_graminoid <- model_sum_frac_graminoid |>
+  emmeans(~ factor(year)) |>
+  pairs(adjust = "holm")   # Holm correction for multiple testing for 6 tests
+
+pairwise_sum_frac_graminoid
+
+#### plotting graminoid #####
+
+year_emm_graminoid <- model_sum_frac_graminoid |>
+  emmeans(~ factor(year)) |>
+  as.data.frame()      # turn the result into a plain data frame
+
+head(year_emm_graminoid)
+
+# cld panel 
+
+# 1️⃣  Get the marginal means (already stored in `year_emm_sal`)
+emm_years_graminoid <- model_sum_frac_graminoid |>
+  emmeans(~ factor(year))
+
+# 2️⃣  Compute the CLD letters (Holm‑adjusted pairwise tests)
+cld_years_graminoid <- emm_years_graminoid |>
+  cld(method = "holm", Letters = letters)   # you can change `Letters` if you prefer
+
+cld_years_graminoid
+
+# 1️⃣  Keep only the columns we need from the CLD output
+cld_labels_graminoid <- cld_years_graminoid |>
+  dplyr::select(year, .group)
+
+# 2️⃣  Join the letters to the emmeans data frame
+year_emm_lab_graminoid <- year_emm_graminoid |>
+  dplyr::left_join(cld_labels_graminoid, by = "year")
+
+p <- ggplot(data = func_summed_graminoid,
+            aes(x = factor(year), y = sum_frac)) +
+  
+  # raw data points (jittered)
+  geom_jitter(width = 0.15,
+              height = 0,
+              alpha = 0.1,
+              colour = "darkgray") +
+  
+  # model‑based means (black dots)
+  geom_point(data = year_emm_graminoid,
+             aes(x = factor(year), y = emmean),
+             colour = "darkred",
+             size = 3) +
+  
+  # *** corrected error‑bar layer ***
+  geom_errorbar(data = year_emm_graminoid,
+                aes(x = factor(year),
+                    ymin = lower.CL ,
+                    ymax = upper.CL),
+                width = 0.2,
+                colour = "darkred",
+                inherit.aes = FALSE) +   # <‑ prevent inheritance of y = abundance
+  
+  labs(x = "Year",
+       y = "Frequency of occurrence") +
+  # **Add the CLD letters**
+  geom_text(data = year_emm_lab_graminoid,
+            aes(x = factor(year),
+                y = 0.75,   # a little above the CI bar
+                label = .group),
+            vjust = 0,
+            colour = "darkred",
+            size = 5) +
+  theme_minimal() +
+  annotate(
+    "text",
+    x = -Inf,          # left edge of the panel (outside the factor range)
+    y = Inf,           # top edge of the panel
+    label = "Graminoid",
+    hjust = -0.1,      # nudge a bit right of the border
+    vjust = 1.1,       # nudge a bit below the top border
+    colour = "black",
+    size = 3
+  )
+
+
+print(p)
 
 # Assuming your model object is called `mod_abund`
 pairwise_sum_frac_gramminoids <- model_sum_frac_gramminoids |>
