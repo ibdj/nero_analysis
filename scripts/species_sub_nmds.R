@@ -24,7 +24,7 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
 
 species_sub_long <- merged_data |>
   group_by(year, subsection, veg_type, taxon_code, no_plots) |>
-  summarize(
+  reframe(
     count = n(),
     fraction_sub = as.double(count) / as.double(no_plots),
     .groups = "drop"
@@ -797,20 +797,89 @@ centroids <- nmds_plot_data %>%
             centroid_NMDS2 = mean(NMDS2),
             .groups = "drop")
 
+centroid_paths <- centroids %>%
+  arrange(veg_type, year)
+
+centroid_pairs <- centroids %>%
+  dplyr::select(year, veg_type, centroid_NMDS1, centroid_NMDS2) %>%
+  group_by(year) %>%
+  do({
+    df <- .
+    pairs <- combn(nrow(df), 2)
+    
+    tibble(
+      year = df$year[1],
+      x    = df$centroid_NMDS1[pairs[1,]],
+      y    = df$centroid_NMDS2[pairs[1,]],
+      xend = df$centroid_NMDS1[pairs[2,]],
+      yend = df$centroid_NMDS2[pairs[2,]]
+    )
+  }) %>%
+  ungroup()
+
 # Create separate plots for each year
-years <- unique(nmds_plot_data$year)
-lims_x <- range(nmds_plot_data$NMDS1)
-lims_y <- range(nmds_plot_data$NMDS2)
+lims_x <- base::range(nmds_plot_data$NMDS1, na.rm = TRUE)
+lims_y <- base::range(nmds_plot_data$NMDS2, na.rm = TRUE)
+
+centroids$year        <- as.character(centroids$year)
+nmds_plot_data$year   <- as.character(nmds_plot_data$year)
+hulls_closed$year     <- as.character(hulls_closed$year)
+centroid_pairs$year   <- as.character(centroid_pairs$year)
+
+years <- unique(centroids$year)  # will now be characters
+
 
 plots <- lapply(years, function(y) {
   df <- nmds_plot_data %>% filter(year == y)
   hull_df <- hulls_closed %>% filter(year == y)
   cent_df <- centroids %>% filter(year == y)
   
-  ggplot(df, aes(x = NMDS1, y = NMDS2, shape = veg_type, color = veg_type)) +
+  df_joined <- df |> 
+    left_join(cent_df, by = c("year", "veg_type"))
+  
+  pair_df <- centroid_pairs %>% filter(year == y)
+  
+  df       <- nmds_plot_data %>% filter(year == y)
+  hull_df  <- hulls_closed   %>% filter(year == y)
+  cent_df  <- centroids      %>% filter(year == y)
+  pair_df  <- centroid_pairs %>% filter(year == y)
+  
+  print(range(pair_df$x))
+  print(range(pair_df$y))
+  print(range(pair_df$xend))
+  print(range(pair_df$yend))
+  
+  print(y)
+  print(range(df$NMDS1, na.rm = TRUE))
+  print(range(df$NMDS2, na.rm = TRUE))
+  print(nrow(pair_df))
+  
+  pair_df <- pair_df %>%
+    mutate(x = as.numeric(x),
+           y = as.numeric(y),
+           xend = as.numeric(xend),
+           yend = as.numeric(yend))
+ 
+  ggplot(df, aes(x = NMDS1, y = NMDS2)) + 
+  geom_segment(data = pair_df,
+                 aes(x = x, y = y,
+                     xend = xend, yend = yend),
+                 linetype = "dashed",
+                 linewidth = 0.5,
+                 colour = "black",
+                 alpha = 0.6,
+                 inherit.aes = FALSE)+
     geom_polygon(data = hull_df, aes(fill = veg_type, group = veg_type), alpha = 0.2, color = NA) +
     geom_path(data = hull_df, aes(group = veg_type), color = "white", size = 0.3) +
-    geom_point(size = 3, alpha = 0.7) +
+    geom_segment(data = df_joined,
+                 aes(x = NMDS1, y = NMDS2,
+                     xend = centroid_NMDS1,
+                     yend = centroid_NMDS2),
+                 color = "black",
+                 size = 0.3,
+                 alpha = 0.6)+
+    geom_point(aes(shape = veg_type, color = veg_type),
+               size = 3, alpha = 0.7)+
     geom_point(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = veg_type),
                shape = 21, size = 5, color = "black") +
     geom_text(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, label = veg_type),
