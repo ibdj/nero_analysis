@@ -55,7 +55,7 @@ species_sub_long <- species_sub_long |>
 
 length(unique(species_sub_long$subsection))
 
-# compute diversity per plot-year
+# compute diversity per subsection
 
 evenness_species <-   species_sub_long |> 
   group_by(year, subsection, veg_type) |>
@@ -70,8 +70,8 @@ head(evenness_species)
 
 #### richness mlm ####
 
-m_richness_sub <- lmer(richness ~ year + (1|subsection), data = richness_sub_df)
-summary(m_richness_sub)
+#m_richness_sub <- lmer(richness ~ year + (1|subsection), data = richness_sub_df)
+#summary(m_richness_sub)
 
 # year as factor and pairwise comparison
 model_richness_sub_f <- lmer(
@@ -120,8 +120,8 @@ plot_richness <- ggplot() +
     data = richness_sub_df,
     aes(x = year, y = richness),
     width = 0.15,
-    alpha = 0.3,
-    color = "black"
+    alpha = 0.5,
+    color = "darkgray"
   ) +
   # Model-based confidence intervals
   geom_errorbar(
@@ -257,7 +257,7 @@ evenness_emm_df$year
 
 plot_evenness <- ggplot() +
   geom_jitter(data = evenness_species, aes(x = year, y = J), 
-              width = 0.15, alpha = 0.3, color = "black") +
+              width = 0.15, alpha = 0.5, color = "darkgray") +
   geom_errorbar(data = evenness_emm_df, 
                 aes(x = year, ymin = lower.CL, ymax = upper.CL),
                 width = 0.25, linewidth = 0.9, color = "darkblue") +
@@ -276,7 +276,27 @@ plot_evenness <- ggplot() +
 
 plot_evenness
 
+#### evenness violin #####
 
+plot_evenness_violin <- ggplot() +
+  geom_violin(data = evenness_species, aes(x = year, y = J), alpha = 0.5, fill = "darkgray", linewidth = 0) +
+  geom_errorbar(data = evenness_emm_df, 
+                aes(x = year, ymin = lower.CL, ymax = upper.CL),
+                width = 0.25, linewidth = 0.9, color = "darkblue") +
+  geom_point(data = evenness_emm_df, 
+             aes(x = year, y = emmean), 
+             size = 2.8, color = "darkblue") +
+  # FIXED: aes(x = year, ...) INSIDE geom_text
+  geom_text(
+    data = evenness_cld,
+    aes(x = year, label = .group),
+    y = 1,  # Tune this
+    size = 4, color = "darkblue"
+  ) +
+  labs(x = "", y = "Pielou's evenness (J)") +
+  theme_minimal()
+
+plot_evenness_violin
 #### evenness visualisation ############################################################
 
 # Get model predictions (with CI) for evenness
@@ -361,7 +381,7 @@ evenness_species <- evenness_species %>%                     # original tibble
 
 plot_shannon <- ggplot() +
   geom_jitter(data = evenness_species, aes(x = x_pos, y = H), 
-              width = 0.15, alpha = 0.3, color = "black") +
+              width = 0.15, alpha = 0.5, color = "darkgray") +
   geom_errorbar(data = shannon_emm_df, 
                 aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
                 width = 0.25, linewidth = 0.9, color = "darkgreen") +
@@ -378,16 +398,36 @@ plot_shannon <- ggplot() +
   theme_minimal()
 
 plot_shannon
+#### shannon violin ####
+
+plot_shannon_violin <- ggplot() +
+  geom_violin(data = evenness_species, aes(x = x_pos, y = H), alpha = 0.5, color = "darkgray", linewidth = 0) +
+  geom_errorbar(data = shannon_emm_df, 
+                aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
+                width = 0.25, linewidth = 0.9, color = "darkgreen") +
+  geom_point(data = shannon_emm_df, 
+             aes(x = x_pos, y = emmean), 
+             size = 2.8, color = "darkgreen") +
+  geom_text(data = shannon_cld,
+            aes(x = x_pos, label = .group),
+            y = 3,  # Above max upper.CL
+            size = 4, color = "darkgreen") +
+  scale_x_continuous(name = "", breaks = 1:4, labels = c("2007", "2012", "2017", "2022")) +
+  coord_cartesian(ylim = c(0, NA))  +
+  labs(y = "Shannon diversity (H)") +
+  theme_minimal()
+
+plot_shannon_violin
 #### SHANNON visualisation #########################
 
 # Get model predictions
-pred_shannon <- ggpredict(m_shannon, terms = "year") |> as.data.frame()
+pred_shannon <- ggpredict(model_shannon_sub_f, terms = "year") |> as.data.frame()
 
 # Extract p-value for year effect from model summary
-pval_shannon <- summary(m_shannon)$coefficients["year", "Pr(>|t|)"]
+pval_shannon <- summary(model_shannon_sub_f)$coefficients["year", "Pr(>|t|)"]
 
 # Get model predictions (with CI) for Shannon diversity
-pred_shannon <- ggeffects::ggpredict(m_shannon, terms = "year")
+pred_shannon <- ggeffects::ggpredict(model_shannon_sub_f, terms = "year")
 
 # Plot observed and predicted Shannon diversity
 ggplot(evenness_species, aes(x = year, y = H)) +
@@ -413,7 +453,7 @@ ggplot(evenness_species, aes(x = year, y = H)) +
     y = "Shannon diversity (H)",
     title = "Change in Shannon diversity over time",
     subtitle = paste0("Linear mixed model (p = ",
-                      formatC(summary(m_shannon)$coefficients["year", "Pr(>|t|)"], digits = 4, format = "f"), ")")
+                      formatC(summary(model_shannon_sub_f)$coefficients["year", "Pr(>|t|)"], digits = 4, format = "f"), ")")
   )
 
 
@@ -518,7 +558,7 @@ plot_turnover <- ggplot() +
   geom_jitter(data = turnover_jitter,
               aes(x = as.integer(factor(year, levels = levels(all_years))),
                   y = total),
-              width = .15, alpha = .3, colour = "black")+
+              width = .15, alpha = .5, colour = "darkgray")+
   
   ## 95 % CI error bars (NA rows are ignored automatically)
   geom_errorbar(data = turnover_plot_df,
@@ -607,7 +647,7 @@ pred_richness <- ggpredict(m_richness_sub, terms = "year") |>
   select(year, value, conf.low, conf.high, metric)
 
 # Shannon predictions
-pred_shannon <- ggpredict(m_shannon_sub, terms = c("year [2007,2012,2017,2022]")) |>
+pred_shannon <- ggpredict(model_shannon_sub_f, terms = c("year [2007,2012,2017,2022]")) |>
   as.data.frame() |>
   mutate(year = as.numeric(x),
          metric = "Shannon",
@@ -617,7 +657,7 @@ pred_shannon <- ggpredict(m_shannon_sub, terms = c("year [2007,2012,2017,2022]")
   select(year, value, conf.low, conf.high, metric)
 
 # Turnover predictions
-pred_turnover <- ggpredict(m_turnover_sub, terms = c("year")) |>
+pred_turnover <- ggpredict(model_, terms = c("year")) |>
   as.data.frame() |>
   mutate(year = as.numeric(x),
          metric = "Turnover",
@@ -800,8 +840,8 @@ ggplot() +
 
 # 2x2 grid (top row: Shannon + Richness, bottom row: Evenness + empty)
 # WRAP everything in plot_layout()
-( plot_shannon  | plot_richness ) /
-  ( plot_evenness | plot_turnover ) +
+( plot_richness  |plot_evenness  ) /
+  ( plot_shannon | plot_turnover ) +
   
   plot_layout(
     guides  = "collect",
