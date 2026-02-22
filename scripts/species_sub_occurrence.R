@@ -197,7 +197,7 @@ p <- ggplot(data = species_sub_betnan,
   # model‑based means (black dots)
   geom_point(data = year_emm_bet,
              aes(x = factor(year), y = emmean),
-             colour = "black",
+             colour = "darkgreen",
              size = 3) +
   
   # *** corrected error‑bar layer ***
@@ -206,7 +206,7 @@ p <- ggplot(data = species_sub_betnan,
                     ymin = lower.CL,
                     ymax = upper.CL),
                 width = 0.2,
-                colour = "black",
+                colour = "darkgreen",
                 inherit.aes = FALSE) +   # <‑ prevent inheritance of y = abundance
   
   labs(x = "Year",
@@ -217,7 +217,7 @@ p <- ggplot(data = species_sub_betnan,
                 y = 0.75,   # a little above the CI bar
                 label = .group),
             vjust = 0,
-            colour = "red",
+            colour = "darkgreen",
             size = 5) +
   theme_minimal()+
   annotate(
