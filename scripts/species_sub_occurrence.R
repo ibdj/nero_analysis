@@ -332,3 +332,28 @@ p <- ggplot(data = species_sub_empnig,
 
 print(p)
 
+#### combined stats #####
+
+salgla_df <- pairwise_years_salgla |>
+  as.data.frame()
+
+betnan_df <- pairwise_years_betnan |>
+  as.data.frame()
+
+empnig_df <- pairwise_years_empnig |>
+  as.data.frame()
+
+all_pairwise_df <- list(
+  salgla  = pairwise_years_salgla,
+  betnan  = pairwise_years_betnan,
+  empnig  = pairwise_years_empnig
+) |>
+  purrr::imap_dfr(
+    \(x, name) {
+      x |>
+        as.data.frame() |>
+        dplyr::mutate(vegetation = name)
+    }
+  )
+all_pairwise_df
+
