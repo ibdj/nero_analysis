@@ -12,6 +12,7 @@ library(lme4)
 library(lmerTest)
 devtools::install_github("rvlenth/emmeans")
 library(emmeans)
+library(cld)
 
 
 #### importing data ############################################################
@@ -890,7 +891,12 @@ plots <- lapply(years, function(y) {
              size = 4) +
     theme_minimal() +
     coord_cartesian(xlim = lims_x, ylim = lims_y)+
-    theme(legend.position = "none")
+    labs(x = "NMDS 1", 
+         y = "NMDS 2") +
+    theme(legend.position = "none", 
+          axis.title.x = element_text(size = 8),  # x‑axis title
+          axis.title.y = element_text(size = 8))
+       
 })
 
 # Combine plots in a grid
