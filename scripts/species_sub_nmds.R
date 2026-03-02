@@ -75,7 +75,7 @@ nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
 nmds_scores$sub_year_vt <- rownames(nmds_scores)
 
 
-#### NMDS visualisation ########################################################
+#### NMDS visualization ########################################################
 
 # Add plot_year_vt as a column to nmds_scores for merging
 nmds_scores$sub_year_vt <- rownames(nmds_scores)
