@@ -802,21 +802,17 @@ centroid_paths <- centroids %>%
   arrange(veg_type, year)
 
 centroid_pairs <- centroids %>%
-  dplyr::select(year, veg_type, centroid_NMDS1, centroid_NMDS2) %>%
+  arrange(year, veg_type) %>%
   group_by(year) %>%
-  do({
-    df <- .
-    pairs <- combn(nrow(df), 2)
-    
+  reframe({
+    pairs <- combn(n(), 2)
     tibble(
-      year = df$year[1],
-      x    = df$centroid_NMDS1[pairs[1,]],
-      y    = df$centroid_NMDS2[pairs[1,]],
-      xend = df$centroid_NMDS1[pairs[2,]],
-      yend = df$centroid_NMDS2[pairs[2,]]
+      x    = centroid_NMDS1[pairs[1,]],
+      y    = centroid_NMDS2[pairs[1,]],
+      xend = centroid_NMDS1[pairs[2,]],
+      yend = centroid_NMDS2[pairs[2,]]
     )
-  }) %>%
-  ungroup()
+  })
 
 # Create separate plots for each year
 lims_x <- base::range(nmds_plot_data$NMDS1, na.rm = TRUE)
@@ -831,76 +827,175 @@ years <- unique(centroids$year)  # will now be characters
 
 
 plots <- lapply(years, function(y) {
-  df <- nmds_plot_data %>% filter(year == y)
-  hull_df <- hulls_closed %>% filter(year == y)
-  cent_df <- centroids %>% filter(year == y)
-  
-  df_joined <- df |> 
-    left_join(cent_df, by = c("year", "veg_type"))
-  
-  pair_df <- centroid_pairs %>% filter(year == y)
   
   df       <- nmds_plot_data %>% filter(year == y)
   hull_df  <- hulls_closed   %>% filter(year == y)
   cent_df  <- centroids      %>% filter(year == y)
-  pair_df  <- centroid_pairs %>% filter(year == y)
   
-  print(range(pair_df$x))
-  print(range(pair_df$y))
-  print(range(pair_df$xend))
-  print(range(pair_df$yend))
+  df_joined <- df %>%
+    left_join(cent_df, by = c("year", "veg_type"))
   
-  print(y)
-  print(range(df$NMDS1, na.rm = TRUE))
-  print(range(df$NMDS2, na.rm = TRUE))
-  print(nrow(pair_df))
+  # centroid–centroid pairs
+  pair_df <- cent_df %>%
+    arrange(veg_type) %>%
+    reframe({
+      if (n() < 2) return(NULL)
+      pairs <- combn(n(), 2)
+      tibble(
+        x    = centroid_NMDS1[pairs[1,]],
+        y    = centroid_NMDS2[pairs[1,]],
+        xend = centroid_NMDS1[pairs[2,]],
+        yend = centroid_NMDS2[pairs[2,]]
+      )
+    })
   
-  pair_df <- pair_df %>%
-    mutate(x = as.numeric(x),
-           y = as.numeric(y),
-           xend = as.numeric(xend),
-           yend = as.numeric(yend))
- 
-  ggplot(df, aes(x = NMDS1, y = NMDS2)) + 
-  geom_segment(data = pair_df,
-                 aes(x = x, y = y,
-                     xend = xend, yend = yend),
+  ggplot() +   # ⬅️ IMPORTANT: remove global aes()
+    
+    # Hulls
+    geom_polygon(data = hull_df,
+                 aes(NMDS1, NMDS2, fill = veg_type, group = veg_type),
+                 alpha = 0.2,
+                 colour = NA) +
+    
+    geom_path(data = hull_df,
+              aes(NMDS1, NMDS2, group = veg_type),
+              colour = "white",
+              linewidth = 0.3) +
+    
+    # 🔹 centroid–centroid
+    geom_segment(data = pair_df,
+                 aes(x = x, y = y, xend = xend, yend = yend),
                  linetype = "dashed",
-                 linewidth = 0.5,
-                 colour = "black",
-                 alpha = 0.6,
-                 inherit.aes = FALSE)+
-    geom_polygon(data = hull_df, aes(fill = veg_type, group = veg_type), alpha = 0.2, color = NA) +
-    geom_path(data = hull_df, aes(group = veg_type), color = "white", size = 0.3) +
+                 linewidth = 0.7,
+                 colour = "black") +
+    
+    # 🔹 plot–centroid
     geom_segment(data = df_joined,
                  aes(x = NMDS1, y = NMDS2,
                      xend = centroid_NMDS1,
                      yend = centroid_NMDS2),
-                 color = "black",
-                 size = 0.3,
-                 alpha = 0.6)+
-    geom_point(aes(shape = veg_type, color = veg_type),
-               size = 3, alpha = 0.7)+
-    geom_point(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, fill = veg_type),
-               shape = 21, size = 5, color = "black") +
-    geom_text(data = cent_df, aes(x = centroid_NMDS1, y = centroid_NMDS2, label = veg_type),
-              vjust = -1.2, size = 3, color = "black") +
-    annotate("text", x = -1.5, y = -1, 
-             label = paste(y), 
-             hjust = 0, vjust = 0,
-             size = 4) +
+                 linewidth = 0.3,
+                 colour = "grey40",
+                 alpha = 0.6) +
+    
+    # Observations
+    geom_point(data = df,
+               aes(NMDS1, NMDS2,
+                   shape = veg_type,
+                   colour = veg_type),
+               size = 3,
+               alpha = 0.7) +
+    
+    # Centroids
+    geom_point(data = cent_df,
+               aes(centroid_NMDS1,
+                   centroid_NMDS2,
+                   fill = veg_type),
+               shape = 21,
+               size = 5,
+               colour = "black") +
+    
+    geom_text(data = cent_df,
+              aes(centroid_NMDS1,
+                  centroid_NMDS2,
+                  label = veg_type),
+              vjust = -1.2,
+              size = 3) +
+    
+    coord_cartesian(xlim = lims_x,
+                    ylim = lims_y) +
+    
     theme_minimal() +
-    coord_cartesian(xlim = lims_x, ylim = lims_y)+
-    labs(x = "NMDS 1", 
-         y = "NMDS 2") +
-    theme(legend.position = "none", 
-          axis.title.x = element_text(size = 8),  # x‑axis title
-          axis.title.y = element_text(size = 8))
-       
+    theme(legend.position = "none")
 })
 
 # Combine plots in a grid
 wrap_plots(plots, ncol = 2)  
+
+#### stand alone plots with pair centroid lines #####
+
+plots_lines <- lapply(years, function(y) {
+  
+  df       <- nmds_plot_data %>% filter(year == y)
+  hull_df  <- hulls_closed   %>% filter(year == y)
+  cent_df  <- centroids      %>% filter(year == y)
+  
+  # ---- Compute all centroid pairs FOR THIS YEAR ----
+  pair_df <- cent_df %>%
+    arrange(veg_type) %>%
+    reframe({
+      if (n() < 2) return(NULL)
+      pairs <- combn(n(), 2)
+      tibble(
+        x    = centroid_NMDS1[pairs[1,]],
+        y    = centroid_NMDS2[pairs[1,]],
+        xend = centroid_NMDS1[pairs[2,]],
+        yend = centroid_NMDS2[pairs[2,]]
+      )
+    })
+  
+  ggplot(df, aes(NMDS1, NMDS2)) +
+    
+    # Hull polygons
+    geom_polygon(data = hull_df,
+                 aes(fill = veg_type, group = veg_type),
+                 alpha = 0.2,
+                 colour = NA) +
+    
+    geom_path(data = hull_df,
+              aes(group = veg_type),
+              colour = "white",
+              linewidth = 0.3) +
+    
+    # 🔹 All pairwise centroid connections
+    geom_segment(data = pair_df,
+                 aes(x = x, y = y,
+                     xend = xend, yend = yend),
+                 inherit.aes = FALSE,
+                 linetype = "dashed",
+                 linewidth = 0.6,
+                 colour = "black",
+                 alpha = 0.7) +
+    
+    # Observations
+    geom_point(aes(shape = veg_type, colour = veg_type),
+               size = 3,
+               alpha = 0.7) +
+    
+    # Centroids
+    geom_point(data = cent_df,
+               aes(x = centroid_NMDS1,
+                   y = centroid_NMDS2,
+                   fill = veg_type),
+               shape = 21,
+               size = 5,
+               colour = "black") +
+    
+    geom_text(data = cent_df,
+              aes(x = centroid_NMDS1,
+                  y = centroid_NMDS2,
+                  label = veg_type),
+              vjust = -1.2,
+              size = 3) +
+    
+    annotate("text",
+             x = lims_x[1],
+             y = lims_y[2],
+             label = y,
+             hjust = 0,
+             vjust = 1,
+             size = 4) +
+    
+    coord_cartesian(xlim = lims_x,
+                    ylim = lims_y) +
+    
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs(x = "NMDS 1",
+         y = "NMDS 2")
+})
+
+wrap_plots(plots_lines, ncol = 2) 
 
 #### NMDS year-vegtype centroid distance ####
 
