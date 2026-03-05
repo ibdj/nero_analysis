@@ -12,6 +12,7 @@ library(codyn) # turnover calculations
 library(multcomp)
 library(multcompView)
 library(patchwork)
+library(cld) 
 
 #### importing data ####
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
@@ -357,3 +358,105 @@ all_pairwise_df <- list(
   )
 all_pairwise_df
 
+
+#### loop for alle species ####
+species_list <- unique(species_sub$taxon_code)
+
+# containers for results
+model_list      <- list()
+pairwise_list   <- list()
+emm_list        <- list()
+plot_list       <- list()
+
+# loop
+for(sp in species_list){
+  
+  df_sp <- species_sub |>
+    dplyr::filter(taxon_code == sp)
+  
+  # Skip species with too little data
+  if(nrow(df_sp) < 5) next
+  
+  # ----- MODEL -----
+  mod <- lmer(
+    fraction ~ factor(year) + (1 | subsection),
+    data = df_sp,
+    REML = FALSE
+  )
+  
+  model_list[[sp]] <- mod
+  
+  
+  # ----- PAIRWISE TESTS -----
+  pairwise <- mod |>
+    emmeans(~ factor(year)) |>
+    pairs(adjust = "holm")
+  
+  pairwise_list[[sp]] <- pairwise
+  
+  
+  # ----- EMMEANS -----
+  emm_df <- mod |>
+    emmeans(~ factor(year)) |>
+    as.data.frame()
+  
+  emm_list[[sp]] <- emm_df
+  
+  
+  # ----- CLD LETTERS -----
+  cld_years <- mod |>
+    emmeans(~ factor(year)) |>
+    multcomp::cld(method = "holm", Letters = letters)
+  
+  cld_labels <- cld_years |>
+    dplyr::select(year, .group)
+  
+  year_emm_lab <- emm_df |>
+    dplyr::left_join(cld_labels, by = "year")
+  
+  
+  # ----- PLOT -----
+  p <- ggplot(df_sp,
+              aes(x = factor(year), y = fraction)) +
+    
+    geom_jitter(width = 0.15,
+                alpha = 0.25,
+                colour = "gray60") +
+    
+    geom_point(data = emm_df,
+               aes(x = factor(year), y = emmean),
+               colour = "black",
+               size = 3) +
+    
+    geom_errorbar(data = emm_df,
+                  aes(x = factor(year),
+                      ymin = lower.CL,
+                      ymax = upper.CL),
+                  width = 0.2,
+                  colour = "black",
+                  inherit.aes = FALSE) +
+    
+    geom_text(data = year_emm_lab,
+              aes(x = factor(year),
+                  y = max(df_sp$fraction, na.rm = TRUE) + 0.05,
+                  label = .group),
+              colour = "red",
+              size = 5) +
+    
+    labs(x = "Year",
+         y = "Frequency of occurrence") +
+    
+    theme_minimal() +
+    
+    annotate("text",
+             x = -Inf,
+             y = Inf,
+             label = sp,
+             hjust = -0.1,
+             vjust = 1.1,
+             size = 3)
+  
+  plot_list[[sp]] <- p
+  
+}
+plot_list
