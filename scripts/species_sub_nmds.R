@@ -1,6 +1,6 @@
 #### packages ####
-library(remotes)
-install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+devtools::install_github("rvlenth/emmeans")
 
 library(tidyverse)
 library(viridis)
@@ -10,7 +10,6 @@ library(pairwiseAdonis)
 library(patchwork)
 library(lme4)
 library(lmerTest)
-devtools::install_github("rvlenth/emmeans")
 library(emmeans)
 library(cld)
 
