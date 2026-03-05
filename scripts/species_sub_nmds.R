@@ -14,7 +14,6 @@ devtools::install_github("rvlenth/emmeans")
 library(emmeans)
 library(cld)
 
-
 #### importing data ############################################################
   
 merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/MappingPlants/01 Vegetation changes Kobbefjord/data/nero_analysis/data/merged_data.rds") |> 
