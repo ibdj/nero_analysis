@@ -340,7 +340,6 @@ cld_tbl <- cld(emm_year, Letters = letters, adjust = "sidak") %>%
   ) %>%
   mutate(year = factor(year))   # keep factor ordering consistent
 
-
 ## 2.  Get marginal means (EMMs) and their SEs
 emm_year <- emmeans(model_dist_to_centroid, ~ year) %>%   # model object name
   as.data.frame() %>%                                   # turn into plain df
@@ -385,17 +384,7 @@ p <- ggplot() +
                 colour = "#D55E00",
                 size   = 0.9) +
   
-  ## 4d. Optional: 95 % CI bars (uncomment if you prefer CIs)
-  # geom_errorbar(data = emm_year,
-  #               aes(x = year,
-  #                   ymin = lower,
-  #                   ymax = upper),
-  #               width = 0.2,
-  #               colour = "#D55E00",
-  #               size   = 0.7,
-  #               linetype = "dashed") +
-  
-  ## 4e. Axis labels, theme, etc.
+## 4e. Axis labels, theme, etc.
   labs(
     x = "",
     y = "Distance to vegetation-type centroid",
