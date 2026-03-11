@@ -620,9 +620,7 @@ for (i in seq_along(veg_vec)) {
 
   pairwise_table <- dplyr::bind_rows(pairwise_table, pairwise_cmp)
   
-  ## --------------------------------------------------------------
   ## 2.7  Plot‑ready summary (mean ± SE) + attach CLD letters
-  ## --------------------------------------------------------------
   plot_stats <- vt_dat |>
     dplyr::group_by(year) |>
     dplyr::summarise(
