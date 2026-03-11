@@ -599,9 +599,9 @@ for (i in seq_along(veg_vec)) {
     sort = FALSE
   ) |> as_tibble() |> dplyr::select(year, .group)
   
-  ## --------------------------------------------------------------
+
   ## 2.5  Pairwise year contrasts (the numbers behind the CLD)
-  ## --------------------------------------------------------------
+
   pairwise_cmp <- emmeans::contrast(
     emm,
     method = "pairwise",
@@ -615,9 +615,9 @@ for (i in seq_along(veg_vec)) {
     p_adj    = p.value
   ) |> dplyr::mutate(veg_type = vt)
   
-  ## --------------------------------------------------------------
+
   ## 2.6  Append pairwise results to the master table
-  ## --------------------------------------------------------------
+
   pairwise_table <- dplyr::bind_rows(pairwise_table, pairwise_cmp)
   
   ## --------------------------------------------------------------
