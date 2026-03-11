@@ -569,30 +569,29 @@ pairwise_table  <- tibble()   # pairwise year contrasts for all veg types
 for (i in seq_along(veg_vec)) {
   vt <- veg_vec[i]
   
-  ## --------------------------------------------------------------
+
   ## 2.1  Subset data (year stays a factor for the model)
-  ## --------------------------------------------------------------
   vt_dat <- site_scores |>
     dplyr::filter(veg_type == vt) |>
     dplyr::mutate(year = factor(year))
   
-  ## --------------------------------------------------------------
+
   ## 2.2  Fit mixed‑effects model (year fixed, subsection random)
-  ## --------------------------------------------------------------
+
   mod <- lmerTest::lmer(
     dist_to_centroid ~ year + (1 | subsection),
     data = vt_dat,
     REML = FALSE
   )
   
-  ## --------------------------------------------------------------
+
   ## 2.3  EMMeans (needed for both CLD and pairwise contrasts)
-  ## --------------------------------------------------------------
+
   emm <- emmeans::emmeans(mod, ~ year)
   
-  ## --------------------------------------------------------------
+
   ## 2.4  CLD letters (Sidak‑adjusted) – for the plot
-  ## --------------------------------------------------------------
+
   cld_df <- multcomp::cld(
     emm,
     adjust = "sidak",
