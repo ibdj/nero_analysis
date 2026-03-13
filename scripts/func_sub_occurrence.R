@@ -440,7 +440,7 @@ pairwise_sum_frac_gramminoids <- model_sum_frac_gramminoids |>
   pairs(adjust = "holm")   # Holm correction for multiple testing for 6 tests
 
 pairwise_sum_frac_gramminoids
-#### combined plit#####
+#### combined plot#####
 
 # Combine the raw‑point data
 raw_long <- bind_rows(
@@ -564,3 +564,86 @@ all_pairwise_df <- list(
     }
   )
 all_pairwise_df
+
+#### looping all functional groups ####
+
+func_summed <- species_sub |> 
+  group_by(year, subsection, veg_type, fraction, func_type) |> 
+  reframe(sum_frac = sum(fraction)) |> 
+  filter(func_type != "rock")
+
+func_types <- unique(func_summed$func_type)
+
+plot_list <- list()
+
+for (f in func_types) {
+  
+  df <- func_summed |> 
+    filter(func_type == f)
+  
+  label_y <- max(df$sum_frac, na.rm = TRUE) * 1.05
+  
+  model <- lmer(
+    sum_frac ~ factor(year) + (1 | subsection),
+    data = df
+  )
+  
+  emm <- emmeans(model, ~ factor(year))
+  emm_df <- as.data.frame(emm)
+  
+  cld_df <- emm |>
+    cld(method = "holm", Letters = letters) |>
+    dplyr::select(year, .group)
+  
+  emm_lab <- emm_df |>
+    dplyr::left_join(cld_df, by = "year")
+  
+  p <- ggplot(df,
+              aes(x = factor(year), y = sum_frac)) +
+    
+    geom_jitter(width = 0.15,
+                alpha = 0.25,
+                colour = "gray60") +
+    
+    geom_point(data = emm_df,
+               aes(x = factor(year), y = emmean),
+               colour = "black",
+               size = 3) +
+    
+    geom_errorbar(data = emm_df,
+                  aes(x = factor(year),
+                      ymin = lower.CL,
+                      ymax = upper.CL),
+                  width = 0.2,
+                  colour = "black",
+                  inherit.aes = FALSE) +
+    
+    geom_text(data = emm_lab,
+              aes(x = factor(year),
+                  y = label_y,
+                  label = .group),
+              colour = "darkgreen",
+              size = 5) +
+    
+    labs(x = "",
+         y = "Summed FOO") +
+    
+    theme_minimal() +
+    
+    annotate(
+      "text",
+      x = -Inf,
+      y = Inf,
+      label = f,
+      hjust = -0.1,
+      vjust = 1.1,
+      size = 3
+    )
+  
+  plot_list[[f]] <- p
+}
+
+grid_plot <- wrap_plots(plot_list, ncol = 2) &
+  theme(plot.margin = margin(1, 1, 1, 1))
+
+print(grid_plot)
