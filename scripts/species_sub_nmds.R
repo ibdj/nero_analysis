@@ -91,6 +91,8 @@ nmds_plot_data <- nmds_scores |>
   left_join(meta, by = "sub_year_vt") |>
   mutate(year = factor(year))  # convert year to factor for plotting
 
+write_rds(nmds_plot_data, "nmds_plot_data")
+
 # Define function to safely compute convex hull
 find_hull <- function(df) {
   df <- na.omit(df)  # remove NA rows
@@ -229,6 +231,7 @@ print(pairwise_results)
 #### mean distance to centroid #################################################
 
 # this is for all veg types, but calculations have been done with respect to each subsecstions vegetation type
+nmds_plot_data <- read_rds("nmds_plot_data")
 
 centroids <- nmds_plot_data %>%
   # 1. Remove unwanted vegetation type
@@ -510,6 +513,7 @@ wrap_plots(plots, ncol = 3)
 
 ## 1️⃣  Global NMDS site scores + metadat
 
+nmds_result <- read_rds("nmds_results")
 # 1.1  Pull the three NMDS axes for every plot
 site_scores <- scores(nmds_result, display = "sites") |>
   as.data.frame() |>
@@ -648,7 +652,7 @@ for (i in seq_along(veg_vec)) {
   ## --------------------------------------------------------------
   p <- ggplot(vt_dat, aes(x = year, y = dist_to_centroid)) +
     geom_jitter(width = 0.15, alpha = 0.4, size = 1.2,
-                colour = "black") +
+                colour = "darkgray") +
     
     geom_errorbar(
       data = plot_stats,
@@ -680,18 +684,14 @@ for (i in seq_along(veg_vec)) {
     theme_minimal() +
     
     theme(
-      plot.title = element_text(face = "plain", hjust = 0.5),
+      plot.title = element_text(face = "plain", hjust = 0.1),
       text = element_text(size = 8)
     )
   
-  ## --------------------------------------------------------------
   ## 2.9  Store the plot
-  ## --------------------------------------------------------------
   plot_list[[i]] <- p
   
-  ## --------------------------------------------------------------
   ## 2.10  Extract fixed‑effect summary (includes p‑values)
-  ## --------------------------------------------------------------
   fixed_tab <- summary(mod)$coefficients |>
     as_tibble(rownames = "term") |>
     dplyr::rename(
@@ -705,20 +705,16 @@ for (i in seq_along(veg_vec)) {
       effect   = "fixed"
     )
   
-  ## --------------------------------------------------------------
   ## 2.11  Append to the master MLM table
-  ## --------------------------------------------------------------
   mlm_table <- dplyr::bind_rows(mlm_table, fixed_tab)
 }
 
-# Show the figure
-print(grid_plot)
-
 ## 3.1  Combined figure
 grid_plot <- wrap_plots(plot_list, ncol = 2) &
-  theme(plot.margin = margin(5, 5, 5, 5))
+  theme(plot.margin = margin(1, 1, 1, 1))
 
-
+# Show the figure
+print(grid_plot)
 ## 3.2  MLM results table (six columns you asked for)
 
 mlm_results <- mlm_table |>
