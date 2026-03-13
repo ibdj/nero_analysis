@@ -53,6 +53,8 @@ meta <- merged_data |>
   dplyr::select(sub_year_vt, year, veg_type, subsection) |> 
   distinct()
 
+write_rds(meta, "nmds_meta")
+
 #### NMDS ######################################################################
 
 # Set seed for reproducibility
@@ -72,8 +74,13 @@ nrow(nmds_scores)
 nmds_scores <- as.data.frame(scores(nmds_result, display = "sites"))
 nmds_scores$sub_year_vt <- rownames(nmds_scores)
 
-
+write_rds(nmds_result,"nmds_results")
+write_rds(nmds_scores,"nmds_scores")
 #### NMDS visualization ########################################################
+
+nmds_scores <- read_rds("nmds_scores")
+nmds_results <- read_rds("nmds_results")
+meta <- read_rds("nmds_meta")
 
 # Add plot_year_vt as a column to nmds_scores for merging
 nmds_scores$sub_year_vt <- rownames(nmds_scores)
