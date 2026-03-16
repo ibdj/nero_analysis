@@ -647,9 +647,7 @@ for (i in seq_along(veg_vec)) {
     ) |>
     dplyr::select(year, .group, y_pos)
   
-  ## --------------------------------------------------------------
   ## 2.8  Build the facet plot (all visual settings unchanged)
-  ## --------------------------------------------------------------
   p <- ggplot(vt_dat, aes(x = year, y = dist_to_centroid)) +
     geom_jitter(width = 0.15, alpha = 0.4, size = 1.2,
                 colour = "darkgray") +
