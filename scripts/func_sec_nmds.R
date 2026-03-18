@@ -19,6 +19,8 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
   ungroup() |> 
   filter(taxon_code != "rock", no_plots > 1)
 
+length(unique(merged_data$section))
+
 pft_sec_long <- merged_data |>
   group_by(year, section, veg_type, taxon_code, no_plots, ecoveg_sgfc) |>
   reframe(
