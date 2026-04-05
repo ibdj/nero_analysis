@@ -1,12 +1,10 @@
 # data prepping
-
-#######################################################################################################################################
-# Load necessary libraries
+# Load necessary libraries ###########################################################################################
 library(dplyr)
 library(readr)
 library(readxl)
-#######################################################################################################################################
-# Define the path to the subfolder containing your CSV files
+
+#### Define the path to the subfolder containing your CSV files ###########################################################################
 data_folder <- "data"
 
 # List all files in the subfolder matching the pattern 'data_[YEAR]_data.csv'
@@ -28,8 +26,8 @@ read_and_standardize <- function(file) {
   
   return(df)
 }
-#######################################################################################################################################
-# read the functional types files #
+
+#### read the functional types files ##############################################
 eco_veg_growth_forms <- read_excel("data/eco_veg_growth_forms.xlsx")
 View(eco_veg_growth_forms)
 
@@ -65,6 +63,10 @@ merged_data<- merged_data |>
     plot >= 16 & plot <= 20 ~ paste(vt_section, "4", sep = "."),
     TRUE ~ NA_character_
   ))
+
+subsection <- merged_data |> 
+  dplyr::select(year,vt_section,veg_type,taxon_code,species,presence,func_type,ecoveg_gfc,ecoveg_sgfc)
+
 merged_data$subsection <- as.factor(merged_data$subsection)
 
 write_rds(merged_data, "data/merged_data.rds")
