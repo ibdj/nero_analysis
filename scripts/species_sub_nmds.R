@@ -897,7 +897,7 @@ plots <- lapply(years, function(y) {
 # Combine plots in a grid
 wrap_plots(plots, ncol = 2)  
 
-#### stand alone plots with pair centroid lines #####
+#### stand alone plots with pair centroid lines ################################
 
 plots_lines <- lapply(years, function(y) {
   
