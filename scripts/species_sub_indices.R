@@ -9,7 +9,7 @@ library(ggeffects)
 library(vegan)
 library(codyn) # turnover calculations
 library(multcomp)
-library(multcompView)
+library(multcompView) # to do cld
 library(patchwork)
 
 
@@ -19,6 +19,9 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
   group_by(year, subsection) |> 
   mutate(no_plots = n_distinct(plot_id)) |> 
   ungroup()
+
+length(unique(merged_data$subsection))
+length(unique(merged_data$vt_section))
 
 merged_data <- merged_data |>  
   dplyr::select(year, subsection,plot_id, veg_type,no_plots,taxon_code,func_type,ecoveg_gfc, ecoveg_sgfc) |>
@@ -64,10 +67,23 @@ evenness_species <-   species_sub_long |>
     S = n(),                          # number of taxa
     J = ifelse(S > 1, H / log(S), NA_real_),
     .groups = "drop"
-  )
+  ) |> 
+  mutate(richness = S)
 
 head(evenness_species)
 
+evenness_species2 <- species_sub_long |> 
+  group_by(year, subsection, veg_type, taxon_code) |> 
+  summarise(abundance = sum(abundance), .groups = "drop") |> 
+  group_by(year, subsection, veg_type) |> 
+  summarise(
+    H = diversity(abundance, index = "shannon"),
+    S = specnumber(abundance),
+    J = ifelse(S > 1, H / log(S), NA_real_),
+    .groups = "drop"
+  )
+
+all(richness_sub_df$richness == evenness_species$richness, na.rm = TRUE)
 #### richness mlm ####
 
 #m_richness_sub <- lmer(richness ~ year + (1|subsection), data = richness_sub_df)
