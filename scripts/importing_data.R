@@ -29,33 +29,54 @@ read_and_standardize <- function(file) {
 
 #### read the functional types files ##############################################
 eco_veg_growth_forms <- read_excel("data/eco_veg_growth_forms.xlsx")
-View(eco_veg_growth_forms)
+#View(eco_veg_growth_forms)
 
 # Read and merge all CSV files into one data frame
-merged_data <- file_list |> 
+data_raw <- file_list |> 
   lapply(read_and_standardize) |>   # Apply standardization function to each file
   bind_rows() |>                    # Combine them into one data frame
   filter(raunkiaer_value != -9999) |>  # Remove invalid values
   mutate(presence = ifelse(raunkiaer_value > 0, 1, 0)) |> # Convert to presence-absence
-  left_join(eco_veg_growth_forms, by = "taxon_code") |> 
-  select(!validation,)
+  dplyr::select(-validation,-remarks,-cfr,-fertile,-raunkiaer_value) |> 
+  dplyr::distinct()
+
+length(unique(data_raw$plot_id))
+length(unique(data_raw$year))
+length(unique(data_raw$year))*length(unique(data_raw$plot_id))
+length(unique(data_raw$taxon_code))
+length(unique(data_raw$vt_section))
+
+n_years  <- dplyr::n_distinct(data_raw$year)
+n_plots  <- dplyr::n_distinct(data_raw$plot_id)
+n_taxa   <- dplyr::n_distinct(data_raw$taxon_code)
+
+n_years * n_plots * n_taxa
+
+data_wide <- data_raw |> 
+  pivot_wider(names_from = "taxon_code", values_from = "presence", values_fill = 0, values_fn = max) |> 
+  dplyr::distinct()
+
+data_long <- data_wide |> 
+  pivot_longer(cols = carbig:viospe, names_to = "taxon_code", values_to = "presence") |> 
+  dplyr::distinct() |> 
+  left_join(eco_veg_growth_forms, by = "taxon_code")
 
 inspect <- merged_data |> 
   filter(year == 2022, 
          plot_id == 3.02 )
 
 # View the merged data
-print(merged_data)
-merged_data$veg_type <- as.factor(merged_data$veg_type)
-merged_data$taxon_code <- as.factor(merged_data$taxon_code)
-merged_data$species <- as.factor(merged_data$species)
-merged_data$func_type <- as.factor(merged_data$func_type)
-merged_data$ecoveg_gfc <- as.factor(merged_data$ecoveg_gfc)
-merged_data$ecoveg_sgfc <- as.factor(merged_data$ecoveg_sgfc)
-summary(merged_data)
+print(data_long)
+data_long$veg_type <- as.factor(data_long$veg_type)
+data_long$taxon_code <- as.factor(data_long$taxon_code)
+data_long$species <- as.factor(data_long$species)
+data_long$func_type <- as.factor(data_long$func_type)
+data_long$ecoveg_gfc <- as.factor(data_long$ecoveg_gfc)
+data_long$ecoveg_sgfc <- as.factor(data_long$ecoveg_sgfc)
+summary(data_long)
 
-merged_data<- merged_data |> 
-  filter(!is.na(func_type)) |>  
+data_long<- data_long |> 
+#  filter(!is.na(func_type)) |>  
   mutate(subsection = case_when(
     plot >= 1  & plot <= 5  ~ paste(vt_section, "1", sep = "."),
     plot >= 6  & plot <= 10 ~ paste(vt_section, "2", sep = "."),
@@ -64,13 +85,14 @@ merged_data<- merged_data |>
     TRUE ~ NA_character_
   ))
 
-subsection <- merged_data |> 
+summary(data_long)
+subsection <- data_long |> 
   dplyr::select(year,vt_section,veg_type,taxon_code,species,presence,func_type,ecoveg_gfc,ecoveg_sgfc)
 
-merged_data$subsection <- as.factor(merged_data$subsection)
+data_long$subsection <- as.factor(data_long$subsection)
 
-write_rds(merged_data, "data/merged_data.rds")
-View(merged_data)
+write_rds(data_long, "data/data_long.rds")
+View(data_long)
 
 this.path::this.path()
 
