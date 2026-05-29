@@ -12,6 +12,7 @@ library(lme4)
 library(lmerTest)
 library(emmeans)
 library(cld)
+library(multcomp)
 
 #### importing data ############################################################
   
@@ -338,8 +339,8 @@ pairs(emm, adjust = "tukey")
 emm_year <- emmeans(model_dist_to_centroid, ~ year)
 
 # Generate the CLD (default uses Tukey letters)
-cld_tbl <- cld(emm_year, Letters = letters, adjust = "sidak") %>%
-  as.data.frame() %>%
+cld_tbl <- multcomp::cld(emm_year, Letters = letters, adjust = "sidak")  |> 
+  as.data.frame() |> 
   rename(
     year = year,
     est  = emmean,
@@ -347,7 +348,7 @@ cld_tbl <- cld(emm_year, Letters = letters, adjust = "sidak") %>%
     lower = lower.CL,
     upper = upper.CL,
     cld  = .group   # column that holds the letters
-  ) %>%
+  ) |> 
   mutate(year = factor(year))   # keep factor ordering consistent
 
 ## 2.  Get marginal means (EMMs) and their SEs
@@ -392,7 +393,7 @@ p <- ggplot() +
                     ymax = est + se),
                 width = 0.2,
                 colour = "#D55E00",
-                size   = 0.9) +
+                linewidth   = 0.9) +
   
 ## 4e. Axis labels, theme, etc.
   labs(
@@ -416,8 +417,6 @@ p <- ggplot() +
 
 ## 5.  Print / save the figure
 print(p)                     # display in RStudio / notebook
-ggsave("fig_distance_vs_year.png", p,
-       width = 7, height = 5, dpi = 300)
 
 #### NMDS for each vegetation type #############################################
 
@@ -509,7 +508,8 @@ plots <- lapply(results_list, `[[`, "plot")
 # Wrap them into a grid with 3 columns
 wrap_plots(plots, ncol = 3)
 
-#### testing mean distance EACH vegtype ####################################
+#### testing mean distance EACH vegtype ########################################
+################################################################################
 
 ## 1️⃣  Global NMDS site scores + metadat
 
@@ -657,19 +657,19 @@ for (i in seq_along(veg_vec)) {
       aes(y = mean_dist,
           ymin = mean_dist - se_dist,
           ymax = mean_dist + se_dist),
-      width = 0.2, colour = "#076834", size = 0.8
+      width = 0.2, colour = "black", size = 0.8
     ) +
     
     geom_point(
       data = plot_stats,
       aes(y = mean_dist),
-      colour = "#076834", size = 3
+      colour = "black", size = 3
     ) +
     
     geom_text(
       data = centroid_cld,
       aes(x = year, y = y_pos, label = .group),
-      vjust = 0, size = 4, colour = "#076834"
+      vjust = 0, size = 4, colour = "black"
     ) +
     
     labs(
@@ -753,7 +753,7 @@ pairwise_results <- pairwise_table |>
 
 view(pairwise_table)
 
-#### NMDS year-vegtype #####
+#### NMDS year-vegtype #########################################################
 
 # Function to compute convex hull safely
 find_hull <- function(df) {
@@ -1060,18 +1060,18 @@ ggplot() +
   ## 4.2  Model‑based means with 95 % CIs
   geom_errorbar(data = emm_df,
                 aes(x = x_pos, ymin = lower.CL, ymax = upper.CL),
-                width = 0.2, colour = "steelblue") +
+                width = 0.2, colour = "black") +
   
   geom_point(data = emm_df,
              aes(x = x_pos, y = emmean),
-             size = 2.8, colour = "steelblue") +
+             size = 2.8, colour = "black") +
   
   ## 4.3  Significance letters (CLD)
   geom_text(data = centroid_cld,
             aes(x = x_pos, label = .group),
             # place just above the highest CI bar
             y = 1.45,
-            vjust = 0, size = 4, colour = "steelblue") +
+            vjust = 0, size = 4, colour = "black") +
   
   ## 4.4  Axis formatting (four years)
   scale_x_continuous(name = "Year",
@@ -1079,7 +1079,6 @@ ggplot() +
                      labels = c("2007","2012","2017","2022")) +
   
   labs(y = "Estimated mean centroid distance") +
-  
   theme_minimal()
 
 #Diagnostics
