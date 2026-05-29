@@ -581,7 +581,7 @@ for (f in func_types) {
   df <- func_summed |> 
     filter(func_type == f)
   
-  label_y <- max(df$sum_frac, na.rm = TRUE) * 1.05
+  label_y <- max(df$sum_frac, na.rm = TRUE)
   
   model <- lmer(
     sum_frac ~ factor(year) + (1 | subsection),
@@ -620,9 +620,9 @@ for (f in func_types) {
     
     geom_text(data = emm_lab,
               aes(x = factor(year),
-                  y = label_y,
-                  label = .group),
-              colour = "darkgreen",
+                    label = .group),
+              y = label_y,
+              colour = "black",
               size = 5) +
     
     labs(x = "",
@@ -635,9 +635,9 @@ for (f in func_types) {
       x = -Inf,
       y = Inf,
       label = f,
-      hjust = -0.1,
+      hjust = 0,
       vjust = 1.1,
-      size = 3
+      size = 4
     )
   
   plot_list[[f]] <- p
