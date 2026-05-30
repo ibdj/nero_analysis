@@ -39,6 +39,8 @@ species_sub <- species_long |>
   summarise(count = sum(occurrence)) |> 
   mutate(fraction = count/no_plots)
 
+write_rds(species_sub, "data/species_sub.rds")
+
 #### salix model frequency of occurrence ####
 
 species_sub_salgla <- species_sub |> 
