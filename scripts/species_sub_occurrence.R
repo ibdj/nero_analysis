@@ -21,15 +21,18 @@ merged_data <- readRDS("~/Library/CloudStorage/OneDrive-Aarhusuniversitet/Mappin
   ungroup()
 
 pivot <- merged_data |> 
-dplyr::select(year, vt_section,subsection, plot, plot_id, no_plots, veg_type, func_type, ecoveg_gfc, ecoveg_sgfc,presence, taxon_code) |> 
-distinct(year, vt_section,subsection, plot, plot_id, no_plots, veg_type, presence, taxon_code)
+dplyr::select(year, vt_section,subsection, plot, plot_id, no_plots, veg_type, func_type, ecoveg_gfc, ecoveg_sgfc,presence, taxon_code, species) |> 
+distinct(year, vt_section,subsection, plot, plot_id, no_plots, veg_type, presence, taxon_code, species)
 
 meta <- merged_data |> 
-  dplyr::select(taxon_code, func_type, ecoveg_gfc, ecoveg_sgfc) |> 
-  distinct()
+  dplyr::select(taxon_code, species, func_type, ecoveg_gfc, ecoveg_sgfc) |> 
+  distinct() |> 
+  mutate(species = as.factor(species))
+
+write_rds(meta |> dplyr::select(taxon_code, species), "data/taxon_code_species_key.rds")
 
 pivot_wide <- pivot |> 
-  pivot_wider(names_from = taxon_code, values_from = presence, values_fill = 0 )
+  pivot_wider(names_from = species, values_from = presence, values_fill = 0 )
 
 species_long <- pivot_wide |> 
  pivot_longer(cols = 8:ncol(pivot_wide), names_to = "taxon_code", values_to = "occurrence")
